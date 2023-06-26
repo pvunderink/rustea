@@ -25,6 +25,10 @@ where
     pub fn genotype(&self) -> &Array<T, Ix1> {
         &self.genotype
     }
+
+    pub fn fitness(&self) -> f64 {
+        self.fitness
+    }
 }
 
 impl Individual<i32> {
@@ -61,6 +65,7 @@ pub struct SimpleGA<'a> {
     genotype_size: usize,
     population_size: usize,
     evaluations: usize,
+    population: Vec<Individual<i32>>,
     fitness_func: &'a (dyn FitnessFunc<i32> + Send + Sync),
 }
 
@@ -70,34 +75,38 @@ impl<'a> SimpleGA<'a> {
         population_size: usize,
         fitness_func: &'a (dyn FitnessFunc<i32> + Send + Sync),
     ) -> SimpleGA {
+        // Initialize population
+        let population = (0..population_size)
+            .into_par_iter()
+            .map(|_| {
+                let mut idv = Individual::new_random_binary(genotype_size);
+                fitness_func.evaluate(&mut idv);
+                idv
+            })
+            .collect();
         SimpleGA {
             genotype_size,
             population_size,
             evaluations: 0,
+            population,
             fitness_func,
         }
     }
 
-    pub fn run(&mut self, evaluation_budget: usize) {
-        // Initialize population
-        let mut population: Vec<_> = (0..self.population_size)
-            .into_par_iter()
-            .map(|_| {
-                let mut idv = Individual::new_random_binary(self.genotype_size);
-                self.fitness_func.evaluate(&mut idv);
-                idv
-            })
-            .collect();
+    pub fn best_individual(&self) -> &Individual<i32> {
+        &self.population[0]
+    }
 
+    pub fn run(&mut self, evaluation_budget: usize) {
         let mut rng = rand::thread_rng();
 
         while self.evaluations < evaluation_budget {
             // Create offspring
-            population.shuffle(&mut rng);
+            self.population.shuffle(&mut rng);
             let mut population_pairs = Vec::<(&Individual<i32>, &Individual<i32>)>::new();
 
-            for i in 0..population.len() / 2 {
-                population_pairs.push((&population[2 * i], &population[2 * i + 1]));
+            for i in 0..self.population.len() / 2 {
+                population_pairs.push((&self.population[2 * i], &self.population[2 * i + 1]));
             }
 
             let mut offspring: Vec<_> = population_pairs
@@ -114,11 +123,10 @@ impl<'a> SimpleGA<'a> {
             self.evaluations += offspring.len();
 
             // Truncation selection
-            population.append(&mut offspring);
-            population.sort_by(|idv1, idv2| idv2.fitness.total_cmp(&idv1.fitness));
-            population.truncate(self.population_size);
-
-            println!("Best fitness: {}", population[0].fitness);
+            self.population.append(&mut offspring);
+            self.population
+                .sort_by(|idv1, idv2| idv2.fitness.total_cmp(&idv1.fitness));
+            self.population.truncate(self.population_size);
         }
     }
 }

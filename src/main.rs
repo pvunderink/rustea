@@ -39,5 +39,9 @@ fn main() {
     ga.run(500000);
 
     let elapsed = now.elapsed();
-    println!("Elapsed: {:.2?}", elapsed);
+    println!(
+        "Best fitness: {}, Elapsed: {:.2?}",
+        ga.best_individual().fitness(),
+        elapsed
+    );
 }
