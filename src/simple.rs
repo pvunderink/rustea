@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use ndarray::{Array, Ix1};
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
@@ -49,22 +51,38 @@ impl Individual<i32> {
 
 pub trait FitnessFunc<T: Clone> {
     fn evaluate(&self, individual: &mut Individual<i32>) -> f64;
+    fn evaluations(&self) -> usize;
 }
 
-pub struct OneMaxFitnessFunc {}
+pub struct OneMaxFitnessFunc {
+    counter: Arc<Mutex<usize>>,
+}
+
+impl OneMaxFitnessFunc {
+    pub fn new() -> OneMaxFitnessFunc {
+        OneMaxFitnessFunc {
+            counter: Arc::new(Mutex::new(0)),
+        }
+    }
+}
 
 impl FitnessFunc<i32> for OneMaxFitnessFunc {
     fn evaluate(&self, individual: &mut Individual<i32>) -> f64 {
         let fitness = individual.genotype.iter().filter(|bit| **bit == 1).count() as f64;
         individual.fitness = fitness;
+        let mut counter = self.counter.lock().unwrap();
+        *counter += 1;
         fitness
+    }
+
+    fn evaluations(&self) -> usize {
+        *self.counter.lock().unwrap()
     }
 }
 
 pub struct SimpleGA<'a> {
     genotype_size: usize,
     population_size: usize,
-    evaluations: usize,
     population: Vec<Individual<i32>>,
     fitness_func: &'a (dyn FitnessFunc<i32> + Send + Sync),
 }
@@ -84,10 +102,10 @@ impl<'a> SimpleGA<'a> {
                 idv
             })
             .collect();
+
         SimpleGA {
             genotype_size,
             population_size,
-            evaluations: 0,
             population,
             fitness_func,
         }
@@ -100,7 +118,7 @@ impl<'a> SimpleGA<'a> {
     pub fn run(&mut self, evaluation_budget: usize) {
         let mut rng = rand::thread_rng();
 
-        while self.evaluations < evaluation_budget {
+        while self.fitness_func.evaluations() < evaluation_budget {
             // Create offspring
             self.population.shuffle(&mut rng);
             let mut population_pairs = Vec::<(&Individual<i32>, &Individual<i32>)>::new();
@@ -119,8 +137,6 @@ impl<'a> SimpleGA<'a> {
                     children
                 })
                 .collect();
-
-            self.evaluations += offspring.len();
 
             // Truncation selection
             self.population.append(&mut offspring);

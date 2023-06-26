@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use ndarray::array;
 use simple::OneMaxFitnessFunc;
 
@@ -30,10 +32,9 @@ fn test() {
 }
 
 fn main() {
-    let one_max = OneMaxFitnessFunc {};
-    let mut ga = SimpleGA::new(8192, 1024, &one_max);
+    let mut one_max = OneMaxFitnessFunc::new();
+    let mut ga = SimpleGA::new(8192, 1024, &mut one_max);
 
-    use std::time::Instant;
     let now = Instant::now();
 
     ga.run(500000);
