@@ -70,8 +70,10 @@ impl FitnessFunc<i32> for OneMaxFitnessFunc {
     fn evaluate(&self, individual: &mut Individual<i32>) -> f64 {
         let fitness = individual.genotype.iter().filter(|bit| **bit == 1).count() as f64;
         individual.fitness = fitness;
+
         let mut counter = self.counter.lock().unwrap();
         *counter += 1;
+
         fitness
     }
 
@@ -119,16 +121,18 @@ impl<'a> SimpleGA<'a> {
         let mut rng = rand::thread_rng();
 
         while self.fitness_func.evaluations() < evaluation_budget {
-            // Create offspring
+            // Shuffle the population
             self.population.shuffle(&mut rng);
             let mut population_pairs = Vec::<(&Individual<i32>, &Individual<i32>)>::new();
 
+            // Organize the population into pairs for crossover
             for i in 0..self.population.len() / 2 {
                 population_pairs.push((&self.population[2 * i], &self.population[2 * i + 1]));
             }
 
+            // Perform crossover and evaluation in parallel
             let mut offspring: Vec<_> = population_pairs
-                .par_iter()
+                .iter()
                 .flat_map(|(parent1, parent2)| {
                     let mut children = uniform_crossover(parent1, parent2, 0.5);
                     self.fitness_func.evaluate(&mut children[0]);
