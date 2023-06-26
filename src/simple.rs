@@ -132,7 +132,7 @@ impl<'a> SimpleGA<'a> {
 
             // Perform crossover and evaluation in parallel
             let mut offspring: Vec<_> = population_pairs
-                .iter()
+                .par_iter()
                 .flat_map(|(parent1, parent2)| {
                     let mut children = uniform_crossover(parent1, parent2, 0.5);
                     self.fitness_func.evaluate(&mut children[0]);
