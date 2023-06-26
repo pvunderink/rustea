@@ -33,5 +33,11 @@ fn main() {
     let one_max = OneMaxFitnessFunc {};
     let mut ga = SimpleGA::new(8192, 1024, &one_max);
 
+    use std::time::Instant;
+    let now = Instant::now();
+
     ga.run(500000);
+
+    let elapsed = now.elapsed();
+    println!("Elapsed: {:.2?}", elapsed);
 }
