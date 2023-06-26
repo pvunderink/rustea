@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    cmp::Ordering,
+    sync::{Arc, Mutex},
+};
 
 use ndarray::{Array, Ix1};
 use rand::{seq::SliceRandom, Rng};
@@ -50,7 +53,8 @@ impl Individual<i32> {
 }
 
 pub trait FitnessFunc<T: Clone> {
-    fn evaluate(&self, individual: &mut Individual<i32>) -> f64;
+    fn evaluate(&self, individual: &mut Individual<T>) -> f64;
+    fn cmp(&self, individual_a: &Individual<T>, individual_b: &Individual<T>) -> Ordering;
     fn evaluations(&self) -> usize;
 }
 
@@ -79,6 +83,10 @@ impl FitnessFunc<i32> for OneMaxFitnessFunc {
 
     fn evaluations(&self) -> usize {
         *self.counter.lock().unwrap()
+    }
+
+    fn cmp(&self, individual_a: &Individual<i32>, individual_b: &Individual<i32>) -> Ordering {
+        individual_b.fitness.total_cmp(&individual_a.fitness)
     }
 }
 
@@ -145,7 +153,7 @@ impl<'a> SimpleGA<'a> {
             // Truncation selection
             self.population.append(&mut offspring);
             self.population
-                .sort_by(|idv1, idv2| idv2.fitness.total_cmp(&idv1.fitness));
+                .sort_by(|idv_a, idv_b| self.fitness_func.cmp(idv_a, idv_b));
             self.population.truncate(self.population_size);
         }
     }
