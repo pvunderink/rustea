@@ -20,7 +20,7 @@ impl<T> Individual<T>
 where
     T: Clone,
 {
-    pub fn from_genotype(genotype: Array<T, Ix1>) -> Individual<T> {
+    pub fn from_genotype(genotype: Array<T, Ix1>) -> Self {
         Individual {
             genotype,
             fitness: 0.0,
@@ -37,7 +37,7 @@ where
 }
 
 impl Individual<i32> {
-    pub fn new_random_binary(genotype_length: usize) -> Individual<i32> {
+    pub fn new_random_binary(genotype_length: usize) -> Self {
         let mut rng = rand::thread_rng();
 
         let bits = (0..genotype_length)
@@ -45,7 +45,7 @@ impl Individual<i32> {
             .collect();
         let genotype = Array::from_vec(bits);
 
-        Individual {
+        Self {
             genotype,
             fitness: 0.0,
         }
@@ -63,8 +63,8 @@ pub struct OneMaxFitnessFunc {
 }
 
 impl OneMaxFitnessFunc {
-    pub fn new() -> OneMaxFitnessFunc {
-        OneMaxFitnessFunc {
+    pub fn new() -> Self {
+        Self {
             counter: Arc::new(Mutex::new(0)),
         }
     }
@@ -102,7 +102,7 @@ impl<'a> SimpleGA<'a> {
         genotype_size: usize,
         population_size: usize,
         fitness_func: &'a (dyn FitnessFunc<i32> + Send + Sync),
-    ) -> SimpleGA {
+    ) -> Self {
         // Initialize population
         let population = (0..population_size)
             .into_par_iter()
@@ -113,7 +113,7 @@ impl<'a> SimpleGA<'a> {
             })
             .collect();
 
-        SimpleGA {
+        Self {
             genotype_size,
             population_size,
             population,
