@@ -1,5 +1,3 @@
-#![feature(iter_collect_into)]
-
 mod bitstring;
 mod fitness;
 mod individual;
