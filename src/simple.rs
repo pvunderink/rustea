@@ -5,7 +5,7 @@ use crate::{
     bitstring::BitString,
     fitness::{ApproxEq, FitnessFunc},
     individual::Individual,
-    selection::Selection,
+    selection::SelectionOperator,
 };
 
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub struct SimpleGA<'a, G, F, S>
 where
     G: BitString,                               // genome type
     F: Default + Copy + ApproxEq + Send + Sync, // fitness value type
-    S: Selection,                               // selection operator type
+    S: SelectionOperator,                       // selection operator type
 {
     population: Vec<Individual<G, F>>,
     fitness_func: &'a FitnessFunc<'a, G, F>,
@@ -31,7 +31,7 @@ impl<'a, G, F, S> SimpleGA<'a, G, F, S>
 where
     G: BitString,
     F: Default + Copy + ApproxEq + Send + Sync,
-    S: Selection,
+    S: SelectionOperator,
 {
     pub fn new(
         genotype_size: usize,
@@ -94,7 +94,7 @@ where
             }
 
             // Perform crossover and evaluation in parallel
-            let mut offspring: Vec<_> = population_pairs
+            let offspring: Vec<_> = population_pairs
                 .par_iter()
                 .flat_map(|(parent1, parent2)| {
                     let mut children = uniform_crossover(parent1, parent2, 0.5);
@@ -107,7 +107,7 @@ where
 
             // Truncation selection
             self.selection_operator
-                .select(&mut self.population, &mut offspring, self.fitness_func);
+                .select(&mut self.population, offspring, self.fitness_func);
         }
 
         return Status::BudgetReached;
