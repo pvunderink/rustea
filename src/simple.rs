@@ -9,27 +9,35 @@ use rayon::prelude::*;
 use crate::bitstring::BitString;
 
 #[derive(Debug)]
-pub struct Individual<T: BitString> {
-    genotype: T,
-    fitness: f64,
+pub struct Individual<G, F>
+where
+    G: BitString,
+    F: Default + Copy,
+{
+    genotype: G,
+    fitness: F,
 }
 
-impl<T: BitString> Individual<T> {
+impl<G, F> Individual<G, F>
+where
+    G: BitString,
+    F: Default + Copy,
+{
     pub fn uniform_random<R>(rng: &mut R, len: usize) -> Self
     where
         R: Rng + ?Sized,
     {
-        let genotype = T::random(rng, len);
+        let genotype = G::random(rng, len);
         Individual {
             genotype,
-            fitness: 0.0,
+            fitness: F::default(),
         }
     }
 
-    pub fn from_genotype(genotype: T) -> Self {
+    pub fn from_genotype(genotype: G) -> Self {
         Individual {
             genotype,
-            fitness: 0.0,
+            fitness: F::default(),
         }
     }
 
@@ -37,14 +45,18 @@ impl<T: BitString> Individual<T> {
         &self.genotype
     }
 
-    pub fn fitness(&self) -> f64 {
+    pub fn fitness(&self) -> F {
         self.fitness
     }
 }
 
-pub trait FitnessFunc<T: BitString> {
-    fn evaluate(&self, individual: &mut Individual<T>) -> f64;
-    fn cmp(&self, individual_a: &Individual<T>, individual_b: &Individual<T>) -> Ordering;
+pub trait FitnessFunc<G, F>
+where
+    G: BitString,
+    F: Default + Copy,
+{
+    fn evaluate(&self, individual: &mut Individual<G, F>) -> F;
+    fn cmp(&self, individual_a: &Individual<G, F>, individual_b: &Individual<G, F>) -> Ordering;
     fn evaluations(&self) -> usize;
 }
 
@@ -60,9 +72,9 @@ impl OneMaxFitnessFunc {
     }
 }
 
-impl<T: BitString> FitnessFunc<T> for OneMaxFitnessFunc {
-    fn evaluate(&self, individual: &mut Individual<T>) -> f64 {
-        let fitness = individual.genotype.iter().filter(|bit| *bit).count() as f64;
+impl<T: BitString> FitnessFunc<T, usize> for OneMaxFitnessFunc {
+    fn evaluate(&self, individual: &mut Individual<T, usize>) -> usize {
+        let fitness = individual.genotype.iter().filter(|bit| *bit).count();
         individual.fitness = fitness;
 
         let mut counter = self.counter.lock().unwrap();
@@ -75,23 +87,35 @@ impl<T: BitString> FitnessFunc<T> for OneMaxFitnessFunc {
         *self.counter.lock().unwrap()
     }
 
-    fn cmp(&self, individual_a: &Individual<T>, individual_b: &Individual<T>) -> Ordering {
-        individual_b.fitness.total_cmp(&individual_a.fitness)
+    fn cmp(
+        &self,
+        individual_a: &Individual<T, usize>,
+        individual_b: &Individual<T, usize>,
+    ) -> Ordering {
+        individual_b.fitness.cmp(&individual_a.fitness)
     }
 }
 
-pub struct SimpleGA<'a, T: BitString> {
+pub struct SimpleGA<'a, G, F>
+where
+    G: BitString,
+    F: Default + Copy + Send + Sync,
+{
     genotype_size: usize,
     population_size: usize,
-    population: Vec<Individual<T>>,
-    fitness_func: &'a (dyn FitnessFunc<T> + Send + Sync),
+    population: Vec<Individual<G, F>>,
+    fitness_func: &'a (dyn FitnessFunc<G, F> + Send + Sync),
 }
 
-impl<'a, T: BitString> SimpleGA<'a, T> {
+impl<'a, G, F> SimpleGA<'a, G, F>
+where
+    G: BitString,
+    F: Default + Copy + Send + Sync,
+{
     pub fn new(
         genotype_size: usize,
         population_size: usize,
-        fitness_func: &'a (dyn FitnessFunc<T> + Send + Sync),
+        fitness_func: &'a (dyn FitnessFunc<G, F> + Send + Sync),
     ) -> Self {
         // Initialize population
         let population = (0..population_size)
@@ -112,7 +136,7 @@ impl<'a, T: BitString> SimpleGA<'a, T> {
         }
     }
 
-    pub fn best_individual(&self) -> &Individual<T> {
+    pub fn best_individual(&self) -> &Individual<G, F> {
         &self.population[0]
     }
 
@@ -150,13 +174,14 @@ impl<'a, T: BitString> SimpleGA<'a, T> {
     }
 }
 
-pub fn uniform_crossover<T>(
-    parent_a: &Individual<T>,
-    parent_b: &Individual<T>,
+pub fn uniform_crossover<G, F>(
+    parent_a: &Individual<G, F>,
+    parent_b: &Individual<G, F>,
     probability: f64,
-) -> Vec<Individual<T>>
+) -> Vec<Individual<G, F>>
 where
-    T: BitString,
+    G: BitString,
+    F: Default + Copy,
 {
     assert_eq!(
         parent_a.genotype.len(),
@@ -189,12 +214,13 @@ where
     ]
 }
 
-pub fn one_point_crossover<T>(
-    parent_a: &Individual<T>,
-    parent_b: &Individual<T>,
-) -> Vec<Individual<T>>
+pub fn one_point_crossover<G, F>(
+    parent_a: &Individual<G, F>,
+    parent_b: &Individual<G, F>,
+) -> Vec<Individual<G, F>>
 where
-    T: BitString,
+    G: BitString,
+    F: Default + Copy,
 {
     assert_eq!(
         parent_a.genotype.len(),
@@ -224,12 +250,13 @@ where
     ]
 }
 
-pub fn two_point_crossover<T>(
-    parent_a: &Individual<T>,
-    parent_b: &Individual<T>,
-) -> Vec<Individual<T>>
+pub fn two_point_crossover<G, F>(
+    parent_a: &Individual<G, F>,
+    parent_b: &Individual<G, F>,
+) -> Vec<Individual<G, F>>
 where
-    T: BitString,
+    G: BitString,
+    F: Default + Copy,
 {
     let offspring = one_point_crossover(parent_a, parent_b);
     let offspring = one_point_crossover(&offspring[0], &offspring[1]);

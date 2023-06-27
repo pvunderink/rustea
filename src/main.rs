@@ -33,7 +33,7 @@ use crate::{bitstring::U8BitString, simple::SimpleGA};
 
 fn main() {
     let mut one_max = OneMaxFitnessFunc::new();
-    let mut ga: SimpleGA<'_, U8BitString> = SimpleGA::new(8192, 1024, &mut one_max);
+    let mut ga: SimpleGA<'_, U8BitString, _> = SimpleGA::new(8192, 1024, &mut one_max);
 
     let now = Instant::now();
 
@@ -45,4 +45,5 @@ fn main() {
         ga.best_individual().fitness(),
         elapsed
     );
+    println!("Best individual: {:?}", ga.best_individual())
 }
