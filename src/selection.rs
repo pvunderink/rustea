@@ -1,5 +1,5 @@
 use rand::{seq::SliceRandom, Rng};
-use rayon::prelude::IntoParallelIterator;
+use std::fmt::Debug;
 
 use crate::{
     bitstring::BitString,
@@ -16,7 +16,7 @@ pub trait SelectionOperator {
     ) where
         Self: Sized,
         G: BitString,
-        F: Default + Copy + ApproxEq;
+        F: Default + Copy + ApproxEq + Debug;
 }
 
 pub struct TruncationSelection;
@@ -29,7 +29,7 @@ impl SelectionOperator for TruncationSelection {
         fitness_func: &FitnessFunc<'_, G, F>,
     ) where
         G: BitString,
-        F: Default + Copy + ApproxEq,
+        F: Default + Copy + ApproxEq + Debug,
     {
         let population_size = population.len();
         population.extend(offspring.into_iter());
@@ -71,7 +71,7 @@ where
         fitness_func: &FitnessFunc<'_, G, F>,
     ) where
         G: BitString,
-        F: Default + Copy + ApproxEq,
+        F: Default + Copy + ApproxEq + Debug,
     {
         let population_size = population.len();
         let pool_size = offspring.len()
@@ -110,7 +110,7 @@ where
                     let winner = pool
                         [self.tournament_size * i..self.tournament_size * i + self.tournament_size]
                         .iter()
-                        .max_by(|idv_a, idv_b| fitness_func.cmp(idv_a, idv_b))
+                        .min_by(|idv_a, idv_b| fitness_func.cmp(idv_a, idv_b))
                         .unwrap();
 
                     winner.clone()
@@ -119,5 +119,7 @@ where
 
             population.append(&mut winners);
         }
+
+        assert!(population.len() == population_size)
     }
 }

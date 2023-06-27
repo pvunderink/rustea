@@ -1,5 +1,6 @@
 use std::{
     cmp::Ordering,
+    fmt::Debug,
     sync::{Arc, Mutex},
 };
 
@@ -25,7 +26,7 @@ impl_int_ApproxEq!(for isize, usize, u8, u16, u32, u64, u128, i8, i16, i32, i64,
 pub struct FitnessFunc<'a, G, F>
 where
     G: BitString,
-    F: Default + Copy + ApproxEq,
+    F: Default + Copy + ApproxEq + Debug,
 {
     counter: Arc<Mutex<usize>>,
     evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
@@ -35,7 +36,7 @@ where
 impl<'a, G, F> FitnessFunc<'a, G, F>
 where
     G: BitString,
-    F: Default + Copy + ApproxEq,
+    F: Default + Copy + ApproxEq + Debug,
 {
     pub fn new(
         evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),

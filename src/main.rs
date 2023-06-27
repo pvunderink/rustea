@@ -37,7 +37,8 @@ fn main() {
     let mut rng = rand::thread_rng();
 
     // Setup selection operator
-    let selection = TournamentSelection::new(4, true, &mut rng);
+    // let selection = TournamentSelection::new(2, true, &mut rng);
+    let selection = TruncationSelection;
 
     // Setup genetic algorithm
     let size = 8192;
@@ -50,8 +51,9 @@ fn main() {
 
     let elapsed = now.elapsed();
     println!(
-        "Best fitness: {}, Elapsed: {:.2?} ({:?})",
+        "Best fitness: {}, Worst fitness: {}, Elapsed: {:.2?} ({:?})",
         ga.best_individual().unwrap().fitness(),
+        ga.worst_individual().unwrap().fitness(),
         elapsed,
         status
     );

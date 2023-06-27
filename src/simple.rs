@@ -1,5 +1,6 @@
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
+use std::fmt::Debug;
 
 use crate::{
     bitstring::BitString,
@@ -17,9 +18,9 @@ pub enum Status {
 
 pub struct SimpleGA<'a, G, F, S>
 where
-    G: BitString,                               // genome type
-    F: Default + Copy + ApproxEq + Send + Sync, // fitness value type
-    S: SelectionOperator,                       // selection operator type
+    G: BitString,                                       // genome type
+    F: Default + Copy + ApproxEq + Debug + Send + Sync, // fitness value type
+    S: SelectionOperator,                               // selection operator type
 {
     population: Vec<Individual<G, F>>,
     fitness_func: &'a FitnessFunc<'a, G, F>,
@@ -30,7 +31,7 @@ where
 impl<'a, G, F, S> SimpleGA<'a, G, F, S>
 where
     G: BitString,
-    F: Default + Copy + ApproxEq + Send + Sync,
+    F: Default + Copy + ApproxEq + Debug + Send + Sync,
     S: SelectionOperator,
 {
     pub fn new(
@@ -59,6 +60,12 @@ where
     }
 
     pub fn best_individual(&self) -> Option<&Individual<G, F>> {
+        self.population
+            .iter()
+            .min_by(|idv_a, idv_b| self.fitness_func.cmp(idv_a, idv_b))
+    }
+
+    pub fn worst_individual(&self) -> Option<&Individual<G, F>> {
         self.population
             .iter()
             .max_by(|idv_a, idv_b| self.fitness_func.cmp(idv_a, idv_b))
