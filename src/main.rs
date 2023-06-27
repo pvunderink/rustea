@@ -1,12 +1,11 @@
 mod bitstring;
 mod simple;
-mod simple_bitstring;
 
 use std::time::Instant;
 
-use simple_bitstring::OneMaxFitnessFunc;
+use simple::OneMaxFitnessFunc;
 
-use crate::{bitstring::U8BitString, simple_bitstring::SimpleGA};
+use crate::{bitstring::U8BitString, simple::SimpleGA};
 
 // fn count_ones(arr: Vec<i32>) -> usize {
 //     arr.iter().filter(|x| **x == 1).count()

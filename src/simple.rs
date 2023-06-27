@@ -3,31 +3,37 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use ndarray::{Array, Ix1};
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
 
+use crate::bitstring::BitString;
+
 #[derive(Debug)]
-pub struct Individual<T>
-where
-    T: Clone,
-{
-    genotype: Array<T, Ix1>,
+pub struct Individual<T: BitString> {
+    genotype: T,
     fitness: f64,
 }
 
-impl<T> Individual<T>
-where
-    T: Clone,
-{
-    pub fn from_genotype(genotype: Array<T, Ix1>) -> Self {
+impl<T: BitString> Individual<T> {
+    pub fn uniform_random<R>(rng: &mut R, len: usize) -> Self
+    where
+        R: Rng + ?Sized,
+    {
+        let genotype = T::random(rng, len);
         Individual {
             genotype,
             fitness: 0.0,
         }
     }
 
-    pub fn genotype(&self) -> &Array<T, Ix1> {
+    pub fn from_genotype(genotype: T) -> Self {
+        Individual {
+            genotype,
+            fitness: 0.0,
+        }
+    }
+
+    pub fn genotype(&self) -> &dyn BitString {
         &self.genotype
     }
 
@@ -36,23 +42,7 @@ where
     }
 }
 
-impl Individual<i32> {
-    pub fn new_random_binary(genotype_length: usize) -> Self {
-        let mut rng = rand::thread_rng();
-
-        let bits = (0..genotype_length)
-            .map(|_| if rng.gen_bool(0.5) { 1 } else { 0 })
-            .collect();
-        let genotype = Array::from_vec(bits);
-
-        Self {
-            genotype,
-            fitness: 0.0,
-        }
-    }
-}
-
-pub trait FitnessFunc<T: Clone> {
+pub trait FitnessFunc<T: BitString> {
     fn evaluate(&self, individual: &mut Individual<T>) -> f64;
     fn cmp(&self, individual_a: &Individual<T>, individual_b: &Individual<T>) -> Ordering;
     fn evaluations(&self) -> usize;
@@ -70,9 +60,9 @@ impl OneMaxFitnessFunc {
     }
 }
 
-impl FitnessFunc<i32> for OneMaxFitnessFunc {
-    fn evaluate(&self, individual: &mut Individual<i32>) -> f64 {
-        let fitness = individual.genotype.iter().filter(|bit| **bit == 1).count() as f64;
+impl<T: BitString> FitnessFunc<T> for OneMaxFitnessFunc {
+    fn evaluate(&self, individual: &mut Individual<T>) -> f64 {
+        let fitness = individual.genotype.iter().filter(|bit| *bit).count() as f64;
         individual.fitness = fitness;
 
         let mut counter = self.counter.lock().unwrap();
@@ -85,29 +75,30 @@ impl FitnessFunc<i32> for OneMaxFitnessFunc {
         *self.counter.lock().unwrap()
     }
 
-    fn cmp(&self, individual_a: &Individual<i32>, individual_b: &Individual<i32>) -> Ordering {
+    fn cmp(&self, individual_a: &Individual<T>, individual_b: &Individual<T>) -> Ordering {
         individual_b.fitness.total_cmp(&individual_a.fitness)
     }
 }
 
-pub struct SimpleGA<'a> {
+pub struct SimpleGA<'a, T: BitString> {
     genotype_size: usize,
     population_size: usize,
-    population: Vec<Individual<i32>>,
-    fitness_func: &'a (dyn FitnessFunc<i32> + Send + Sync),
+    population: Vec<Individual<T>>,
+    fitness_func: &'a (dyn FitnessFunc<T> + Send + Sync),
 }
 
-impl<'a> SimpleGA<'a> {
+impl<'a, T: BitString> SimpleGA<'a, T> {
     pub fn new(
         genotype_size: usize,
         population_size: usize,
-        fitness_func: &'a (dyn FitnessFunc<i32> + Send + Sync),
+        fitness_func: &'a (dyn FitnessFunc<T> + Send + Sync),
     ) -> Self {
         // Initialize population
         let population = (0..population_size)
             .into_par_iter()
             .map(|_| {
-                let mut idv = Individual::new_random_binary(genotype_size);
+                let mut rng = rand::thread_rng();
+                let mut idv = Individual::uniform_random(&mut rng, genotype_size);
                 fitness_func.evaluate(&mut idv);
                 idv
             })
@@ -121,7 +112,7 @@ impl<'a> SimpleGA<'a> {
         }
     }
 
-    pub fn best_individual(&self) -> &Individual<i32> {
+    pub fn best_individual(&self) -> &Individual<T> {
         &self.population[0]
     }
 
@@ -131,7 +122,7 @@ impl<'a> SimpleGA<'a> {
         while self.fitness_func.evaluations() < evaluation_budget {
             // Shuffle the population
             self.population.shuffle(&mut rng);
-            let mut population_pairs = Vec::<(&Individual<i32>, &Individual<i32>)>::new();
+            let mut population_pairs = Vec::<(_, _)>::new();
 
             // Organize the population into pairs for crossover
             for i in 0..self.population.len() / 2 {
@@ -165,7 +156,7 @@ pub fn uniform_crossover<T>(
     probability: f64,
 ) -> Vec<Individual<T>>
 where
-    T: Clone,
+    T: BitString,
 {
     assert_eq!(
         parent_a.genotype.len(),
@@ -182,13 +173,13 @@ where
         .collect();
 
     // Create copies of parent a and b
-    let mut offspring_a = parent_a.genotype.to_owned();
-    let mut offspring_b = parent_b.genotype.to_owned();
+    let mut offspring_a = parent_a.genotype.clone();
+    let mut offspring_b = parent_b.genotype.clone();
 
     for (idx, b) in choices.iter().enumerate() {
         if *b {
-            offspring_b[idx] = parent_a.genotype[idx].clone();
-            offspring_a[idx] = parent_b.genotype[idx].clone();
+            offspring_b.set(idx, parent_a.genotype.get(idx));
+            offspring_a.set(idx, parent_b.genotype.get(idx));
         }
     }
 
@@ -203,7 +194,7 @@ pub fn one_point_crossover<T>(
     parent_b: &Individual<T>,
 ) -> Vec<Individual<T>>
 where
-    T: Clone,
+    T: BitString,
 {
     assert_eq!(
         parent_a.genotype.len(),
@@ -217,13 +208,13 @@ where
     let crossover_point: usize = rng.gen_range(0..parent_a.genotype.len() + 1);
 
     // Create copies of parent a and b
-    let mut offspring_a = parent_a.genotype.to_owned();
-    let mut offspring_b = parent_b.genotype.to_owned();
+    let mut offspring_a = parent_a.genotype.clone();
+    let mut offspring_b = parent_b.genotype.clone();
 
     for idx in 0..parent_a.genotype.len() {
         if idx >= crossover_point {
-            offspring_b[idx] = parent_a.genotype[idx].clone();
-            offspring_a[idx] = parent_b.genotype[idx].clone();
+            offspring_b.set(idx, parent_a.genotype.get(idx));
+            offspring_a.set(idx, parent_b.genotype.get(idx));
         }
     }
 
@@ -238,7 +229,7 @@ pub fn two_point_crossover<T>(
     parent_b: &Individual<T>,
 ) -> Vec<Individual<T>>
 where
-    T: Clone,
+    T: BitString,
 {
     let offspring = one_point_crossover(parent_a, parent_b);
     let offspring = one_point_crossover(&offspring[0], &offspring[1]);
