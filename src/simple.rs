@@ -50,31 +50,36 @@ where
     }
 }
 
-pub trait FitnessFunc<G, F>
+pub struct FitnessFunc<'a, G, F>
 where
     G: BitString,
     F: Default + Copy,
 {
-    fn evaluate(&self, individual: &mut Individual<G, F>) -> F;
-    fn cmp(&self, individual_a: &Individual<G, F>, individual_b: &Individual<G, F>) -> Ordering;
-    fn evaluations(&self) -> usize;
-}
-
-pub struct OneMaxFitnessFunc {
     counter: Arc<Mutex<usize>>,
+    evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
+    comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering + Send + Sync),
 }
 
-impl OneMaxFitnessFunc {
-    pub fn new() -> Self {
+impl<'a, G, F> FitnessFunc<'a, G, F>
+where
+    G: BitString,
+    F: Default + Copy,
+{
+    pub fn new(
+        evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
+        comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering
+                 + Send
+                 + Sync),
+    ) -> Self {
         Self {
             counter: Arc::new(Mutex::new(0)),
+            evaluation_func,
+            comparison_func,
         }
     }
-}
 
-impl<T: BitString> FitnessFunc<T, usize> for OneMaxFitnessFunc {
-    fn evaluate(&self, individual: &mut Individual<T, usize>) -> usize {
-        let fitness = individual.genotype.iter().filter(|bit| *bit).count();
+    pub fn evaluate(&self, individual: &mut Individual<G, F>) -> F {
+        let fitness = (self.evaluation_func)(individual);
         individual.fitness = fitness;
 
         let mut counter = self.counter.lock().unwrap();
@@ -83,16 +88,12 @@ impl<T: BitString> FitnessFunc<T, usize> for OneMaxFitnessFunc {
         fitness
     }
 
-    fn evaluations(&self) -> usize {
+    pub fn evaluations(&self) -> usize {
         *self.counter.lock().unwrap()
     }
 
-    fn cmp(
-        &self,
-        individual_a: &Individual<T, usize>,
-        individual_b: &Individual<T, usize>,
-    ) -> Ordering {
-        individual_b.fitness.cmp(&individual_a.fitness)
+    pub fn cmp(&self, idv_a: &Individual<G, F>, idv_b: &Individual<G, F>) -> Ordering {
+        (self.comparison_func)(idv_a, idv_b)
     }
 }
 
@@ -104,7 +105,7 @@ where
     genotype_size: usize,
     population_size: usize,
     population: Vec<Individual<G, F>>,
-    fitness_func: &'a (dyn FitnessFunc<G, F> + Send + Sync),
+    fitness_func: &'a FitnessFunc<'a, G, F>,
 }
 
 impl<'a, G, F> SimpleGA<'a, G, F>
@@ -115,7 +116,7 @@ where
     pub fn new(
         genotype_size: usize,
         population_size: usize,
-        fitness_func: &'a (dyn FitnessFunc<G, F> + Send + Sync),
+        fitness_func: &'a FitnessFunc<G, F>,
     ) -> Self {
         // Initialize population
         let population = (0..population_size)

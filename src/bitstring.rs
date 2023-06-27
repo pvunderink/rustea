@@ -23,6 +23,26 @@ pub trait BitString: Send + Sync {
         Self: Sized;
 }
 
+pub struct BitStringIter<'a> {
+    bitstring: &'a dyn BitString,
+    index: usize,
+}
+
+impl<'a> Iterator for BitStringIter<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = if self.index >= self.bitstring.len() {
+            None
+        } else {
+            Some(self.bitstring.get(self.index))
+        };
+        self.index += 1;
+
+        return result;
+    }
+}
+
 #[derive(Debug)]
 pub struct U8BitString {
     bytes: Vec<u8>,
@@ -66,8 +86,8 @@ impl BitString for U8BitString {
         assert!(index < self.len);
         let byte_index = index / 8;
         let bit_index = index % 8;
-        let mut byte = self.bytes[byte_index];
 
+        let mut byte = self.bytes[byte_index];
         // reset the bit at bit_index to 0
         byte = byte & !(0x1 << (7 - bit_index));
 
@@ -108,26 +128,6 @@ impl BitString for U8BitString {
             bytes: self.bytes.clone(),
             len: self.len,
         }
-    }
-}
-
-pub struct BitStringIter<'a> {
-    bitstring: &'a dyn BitString,
-    index: usize,
-}
-
-impl<'a> Iterator for BitStringIter<'a> {
-    type Item = bool;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.index >= self.bitstring.len() {
-            None
-        } else {
-            Some(self.bitstring.get(self.index))
-        };
-        self.index += 1;
-
-        return result;
     }
 }
 
