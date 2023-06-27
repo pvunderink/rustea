@@ -47,3 +47,16 @@ where
         self.fitness = fitness
     }
 }
+
+impl<G, F> Clone for Individual<G, F>
+where
+    G: BitString,
+    F: Default + Copy,
+{
+    fn clone(&self) -> Self {
+        Self {
+            genotype: self.genotype.clone(),
+            fitness: self.fitness.clone(),
+        }
+    }
+}

@@ -1,3 +1,5 @@
+#![feature(iter_collect_into)]
+
 mod bitstring;
 mod fitness;
 mod individual;
@@ -10,7 +12,7 @@ use crate::{
     bitstring::{BitString, U8BitString},
     fitness::FitnessFunc,
     individual::Individual,
-    selection::TruncationSelection,
+    selection::{TournamentSelection, TruncationSelection},
     simple::SimpleGA,
 };
 
@@ -32,8 +34,10 @@ fn main() {
     // Setup fitness function
     let mut one_max = FitnessFunc::new(&evaluate, &compare);
 
+    let mut rng = rand::thread_rng();
+
     // Setup selection operator
-    let selection = TruncationSelection;
+    let selection = TournamentSelection::new(4, true, &mut rng);
 
     // Setup genetic algorithm
     let size = 8192;
