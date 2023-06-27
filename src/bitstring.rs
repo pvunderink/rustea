@@ -17,18 +17,26 @@ pub trait BitString: Send + Sync {
     fn set(&mut self, index: usize, bit: bool);
     fn len(&self) -> usize;
     fn flip(&mut self, index: usize);
-    fn iter(&self) -> BitStringIter;
+    fn iter(&self) -> BitStringIter<Self>
+    where
+        Self: Sized;
     fn clone(&self) -> Self
     where
         Self: Sized;
 }
 
-pub struct BitStringIter<'a> {
-    bitstring: &'a dyn BitString,
+pub struct BitStringIter<'a, B>
+where
+    B: BitString,
+{
+    bitstring: &'a B,
     index: usize,
 }
 
-impl<'a> Iterator for BitStringIter<'a> {
+impl<'a, B> Iterator for BitStringIter<'a, B>
+where
+    B: BitString,
+{
     type Item = bool;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -116,7 +124,7 @@ impl BitString for U8BitString {
         self.bytes[byte_index] = byte;
     }
 
-    fn iter(&self) -> BitStringIter {
+    fn iter(&self) -> BitStringIter<Self> {
         BitStringIter {
             bitstring: self,
             index: 0,

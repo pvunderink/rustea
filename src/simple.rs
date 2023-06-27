@@ -1,122 +1,43 @@
-use std::{
-    cmp::Ordering,
-    sync::{Arc, Mutex},
-};
-
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
 
-use crate::bitstring::BitString;
+use crate::{
+    bitstring::BitString,
+    fitness::{ApproxEq, FitnessFunc},
+    individual::Individual,
+    selection::Selection,
+};
 
 #[derive(Debug)]
-pub struct Individual<G, F>
-where
-    G: BitString,
-    F: Default + Copy,
-{
-    genotype: G,
-    fitness: F,
+pub enum Status {
+    TargetReached,
+    BudgetReached,
+    Failed,
 }
 
-impl<G, F> Individual<G, F>
+pub struct SimpleGA<'a, G, F, S>
 where
-    G: BitString,
-    F: Default + Copy,
+    G: BitString,                               // genome type
+    F: Default + Copy + ApproxEq + Send + Sync, // fitness value type
+    S: Selection,                               // selection operator type
 {
-    pub fn uniform_random<R>(rng: &mut R, len: usize) -> Self
-    where
-        R: Rng + ?Sized,
-    {
-        let genotype = G::random(rng, len);
-        Individual {
-            genotype,
-            fitness: F::default(),
-        }
-    }
-
-    pub fn from_genotype(genotype: G) -> Self {
-        Individual {
-            genotype,
-            fitness: F::default(),
-        }
-    }
-
-    pub fn genotype(&self) -> &dyn BitString {
-        &self.genotype
-    }
-
-    pub fn fitness(&self) -> F {
-        self.fitness
-    }
-}
-
-pub struct FitnessFunc<'a, G, F>
-where
-    G: BitString,
-    F: Default + Copy,
-{
-    counter: Arc<Mutex<usize>>,
-    evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
-    comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering + Send + Sync),
-}
-
-impl<'a, G, F> FitnessFunc<'a, G, F>
-where
-    G: BitString,
-    F: Default + Copy,
-{
-    pub fn new(
-        evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
-        comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering
-                 + Send
-                 + Sync),
-    ) -> Self {
-        Self {
-            counter: Arc::new(Mutex::new(0)),
-            evaluation_func,
-            comparison_func,
-        }
-    }
-
-    pub fn evaluate(&self, individual: &mut Individual<G, F>) -> F {
-        let fitness = (self.evaluation_func)(individual);
-        individual.fitness = fitness;
-
-        let mut counter = self.counter.lock().unwrap();
-        *counter += 1;
-
-        fitness
-    }
-
-    pub fn evaluations(&self) -> usize {
-        *self.counter.lock().unwrap()
-    }
-
-    pub fn cmp(&self, idv_a: &Individual<G, F>, idv_b: &Individual<G, F>) -> Ordering {
-        (self.comparison_func)(idv_a, idv_b)
-    }
-}
-
-pub struct SimpleGA<'a, G, F>
-where
-    G: BitString,
-    F: Default + Copy + Send + Sync,
-{
-    genotype_size: usize,
-    population_size: usize,
     population: Vec<Individual<G, F>>,
     fitness_func: &'a FitnessFunc<'a, G, F>,
+    selection_operator: S,
+    target_fitness: Option<F>,
 }
 
-impl<'a, G, F> SimpleGA<'a, G, F>
+impl<'a, G, F, S> SimpleGA<'a, G, F, S>
 where
     G: BitString,
-    F: Default + Copy + Send + Sync,
+    F: Default + Copy + ApproxEq + Send + Sync,
+    S: Selection,
 {
     pub fn new(
         genotype_size: usize,
         population_size: usize,
         fitness_func: &'a FitnessFunc<G, F>,
+        selection_operator: S,
     ) -> Self {
         // Initialize population
         let population = (0..population_size)
@@ -130,21 +51,39 @@ where
             .collect();
 
         Self {
-            genotype_size,
-            population_size,
             population,
             fitness_func,
+            selection_operator,
+            target_fitness: Option::None,
         }
     }
 
-    pub fn best_individual(&self) -> &Individual<G, F> {
-        &self.population[0]
+    pub fn best_individual(&self) -> Option<&Individual<G, F>> {
+        self.population
+            .iter()
+            .max_by(|idv_a, idv_b| self.fitness_func.cmp(idv_a, idv_b))
     }
 
-    pub fn run(&mut self, evaluation_budget: usize) {
+    pub fn set_target_fitness(&mut self, target: F) {
+        self.target_fitness = Some(target)
+    }
+
+    pub fn run(&mut self, evaluation_budget: usize) -> Status {
         let mut rng = rand::thread_rng();
 
         while self.fitness_func.evaluations() < evaluation_budget {
+            match self.target_fitness {
+                Some(target) => match self.best_individual() {
+                    Some(idv) => {
+                        if idv.fitness().approx_eq(&target) {
+                            return Status::TargetReached;
+                        }
+                    }
+                    None => (),
+                },
+                None => (),
+            }
+
             // Shuffle the population
             self.population.shuffle(&mut rng);
             let mut population_pairs = Vec::<(_, _)>::new();
@@ -167,11 +106,11 @@ where
                 .collect();
 
             // Truncation selection
-            self.population.append(&mut offspring);
-            self.population
-                .sort_by(|idv_a, idv_b| self.fitness_func.cmp(idv_a, idv_b));
-            self.population.truncate(self.population_size);
+            self.selection_operator
+                .select(&mut self.population, &mut offspring, self.fitness_func);
         }
+
+        return Status::BudgetReached;
     }
 }
 
@@ -185,8 +124,8 @@ where
     F: Default + Copy,
 {
     assert_eq!(
-        parent_a.genotype.len(),
-        parent_b.genotype.len(),
+        parent_a.genotype().len(),
+        parent_b.genotype().len(),
         "length of genotypes must be equal"
     );
 
@@ -194,18 +133,18 @@ where
 
     // Generate an array of booleans
     // true indicates that the gene should be crossed over
-    let choices: Vec<_> = (0..parent_a.genotype.len())
+    let choices: Vec<_> = (0..parent_a.genotype().len())
         .map(|_| rng.gen_bool(probability))
         .collect();
 
     // Create copies of parent a and b
-    let mut offspring_a = parent_a.genotype.clone();
-    let mut offspring_b = parent_b.genotype.clone();
+    let mut offspring_a = parent_a.genotype().clone();
+    let mut offspring_b = parent_b.genotype().clone();
 
     for (idx, b) in choices.iter().enumerate() {
         if *b {
-            offspring_b.set(idx, parent_a.genotype.get(idx));
-            offspring_a.set(idx, parent_b.genotype.get(idx));
+            offspring_b.set(idx, parent_a.genotype().get(idx));
+            offspring_a.set(idx, parent_b.genotype().get(idx));
         }
     }
 
@@ -224,24 +163,24 @@ where
     F: Default + Copy,
 {
     assert_eq!(
-        parent_a.genotype.len(),
-        parent_b.genotype.len(),
+        parent_a.genotype().len(),
+        parent_b.genotype().len(),
         "length of genotypes must be equal"
     );
 
     let mut rng = rand::thread_rng();
 
     // Pick a crossover point (both endpoints are included)
-    let crossover_point: usize = rng.gen_range(0..parent_a.genotype.len() + 1);
+    let crossover_point: usize = rng.gen_range(0..parent_a.genotype().len() + 1);
 
     // Create copies of parent a and b
-    let mut offspring_a = parent_a.genotype.clone();
-    let mut offspring_b = parent_b.genotype.clone();
+    let mut offspring_a = parent_a.genotype().clone();
+    let mut offspring_b = parent_b.genotype().clone();
 
-    for idx in 0..parent_a.genotype.len() {
+    for idx in 0..parent_a.genotype().len() {
         if idx >= crossover_point {
-            offspring_b.set(idx, parent_a.genotype.get(idx));
-            offspring_a.set(idx, parent_b.genotype.get(idx));
+            offspring_b.set(idx, parent_a.genotype().get(idx));
+            offspring_a.set(idx, parent_b.genotype().get(idx));
         }
     }
 
