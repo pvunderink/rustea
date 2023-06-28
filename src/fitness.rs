@@ -14,7 +14,7 @@ where
     F: Default + Copy + AbsDiffEq + Debug,
 {
     counter: Arc<Mutex<usize>>,
-    evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
+    evaluation_func: &'a (dyn Fn(&Individual<G, F>) -> F + Send + Sync),
     comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering + Send + Sync),
 }
 
@@ -24,7 +24,7 @@ where
     F: Default + Copy + AbsDiffEq + Debug,
 {
     pub fn new(
-        evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
+        evaluation_func: &'a (dyn Fn(&Individual<G, F>) -> F + Send + Sync),
         comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering
                  + Send
                  + Sync),

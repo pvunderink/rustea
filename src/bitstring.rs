@@ -1,25 +1,37 @@
 use std::fmt::Display;
 
+use ndarray::{Array, Ix1};
 use rand::Rng;
 
-pub trait BitString: Send + Sync {
+pub trait BitString: Send + Sync + FromIterator<bool> {
     fn zeros(len: usize) -> Self
     where
         Self: Sized;
+
     fn ones(len: usize) -> Self
     where
         Self: Sized;
+
     fn random<R>(rng: &mut R, len: usize) -> Self
     where
         Self: Sized,
         R: Rng + ?Sized;
+
     fn get(&self, index: usize) -> bool;
     fn set(&mut self, index: usize, bit: bool);
     fn len(&self) -> usize;
     fn flip(&mut self, index: usize);
+
     fn iter(&self) -> BitStringIter<Self>
     where
-        Self: Sized;
+        Self: Sized,
+    {
+        BitStringIter {
+            bitstring: self,
+            index: 0,
+        }
+    }
+
     fn clone(&self) -> Self
     where
         Self: Sized;
@@ -124,13 +136,6 @@ impl BitString for U8BitString {
         self.bytes[byte_index] = byte;
     }
 
-    fn iter(&self) -> BitStringIter<Self> {
-        BitStringIter {
-            bitstring: self,
-            index: 0,
-        }
-    }
-
     fn clone(&self) -> Self {
         Self {
             bytes: self.bytes.clone(),
@@ -147,6 +152,99 @@ impl Display for U8BitString {
             .collect::<String>();
 
         f.write_str(&str)
+    }
+}
+
+impl From<Vec<bool>> for U8BitString {
+    fn from(value: Vec<bool>) -> Self {
+        let mut bitstring = Self::zeros(value.len());
+
+        for (i, b) in value.iter().enumerate() {
+            bitstring.set(i, b);
+        }
+
+        bitstring
+    }
+}
+
+impl FromIterator<bool> for U8BitString {
+    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
+        let vec: Vec<_> = iter.into_iter().collect();
+        vec.into()
+    }
+}
+
+impl BitString for Array<bool, Ix1> {
+    fn zeros(len: usize) -> Self {
+        Array::from_elem(len, false)
+    }
+
+    fn ones(len: usize) -> Self {
+        Array::from_elem(len, true)
+    }
+
+    fn random<R>(rng: &mut R, len: usize) -> Self
+    where
+        R: Rng + ?Sized,
+    {
+        (0..len).map(|_| rng.gen_bool(0.5)).collect()
+    }
+
+    fn get(&self, index: usize) -> bool {
+        self[index]
+    }
+
+    fn set(&mut self, index: usize, bit: bool) {
+        self[index] = bit
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn flip(&mut self, index: usize) {
+        self[index] = !self[index]
+    }
+
+    fn clone(&self) -> Self {
+        Clone::clone(&self)
+    }
+}
+
+impl BitString for Vec<bool> {
+    fn zeros(len: usize) -> Self {
+        vec![false; len]
+    }
+
+    fn ones(len: usize) -> Self {
+        vec![true; len]
+    }
+
+    fn random<R>(rng: &mut R, len: usize) -> Self
+    where
+        R: Rng + ?Sized,
+    {
+        (0..len).map(|_| rng.gen_bool(0.5)).collect()
+    }
+
+    fn get(&self, index: usize) -> bool {
+        self[index]
+    }
+
+    fn set(&mut self, index: usize, bit: bool) {
+        self[index] = bit
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn flip(&mut self, index: usize) {
+        self[index] = !self[index]
+    }
+
+    fn clone(&self) -> Self {
+        Clone::clone(&self)
     }
 }
 

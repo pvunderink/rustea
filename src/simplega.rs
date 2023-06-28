@@ -9,9 +9,8 @@ use crate::{
 
 #[derive(Debug)]
 pub enum Status {
-    TargetReached,
-    BudgetReached,
-    Failed,
+    TargetReached(usize),
+    BudgetReached(usize),
 }
 
 pub struct SimpleGA<'a, G, F, S, V>
@@ -38,8 +37,8 @@ where
         genotype_size: usize,
         population_size: usize,
         fitness_func: &'a FitnessFunc<G, F>,
-        selection_operator: S,
-        variation_operator: V,
+        selection: S,
+        variation: V,
     ) -> Self {
         // Initialize population
         let population = (0..population_size)
@@ -55,8 +54,8 @@ where
         Self {
             population,
             fitness_func,
-            selection_operator,
-            variation_operator,
+            selection_operator: selection,
+            variation_operator: variation,
             target_fitness: Option::None,
         }
     }
@@ -83,7 +82,7 @@ where
                 Some(target) => match self.best_individual() {
                     Some(idv) => {
                         if abs_diff_eq!(idv.fitness(), &target) {
-                            return Status::TargetReached;
+                            return Status::TargetReached(self.fitness_func.evaluations());
                         }
                     }
                     None => (),
@@ -101,6 +100,6 @@ where
                 .select(&mut self.population, offspring, self.fitness_func);
         }
 
-        return Status::BudgetReached;
+        return Status::BudgetReached(self.fitness_func.evaluations());
     }
 }

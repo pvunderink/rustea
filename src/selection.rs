@@ -51,32 +51,21 @@ impl SelectionOperator for NoSelection {
     }
 }
 
-pub struct TournamentSelection<'a, R>
-where
-    R: Rng + ?Sized,
-{
+pub struct TournamentSelection {
     tournament_size: usize,
     include_parents: bool,
-    rng: &'a mut R,
 }
 
-impl<'a, R> TournamentSelection<'a, R>
-where
-    R: Rng + ?Sized,
-{
-    pub fn new(tournament_size: usize, include_parents: bool, rng: &'a mut R) -> Self {
+impl TournamentSelection {
+    pub fn new(tournament_size: usize, include_parents: bool) -> Self {
         Self {
             tournament_size,
             include_parents,
-            rng,
         }
     }
 }
 
-impl<'a, R> SelectionOperator for TournamentSelection<'a, R>
-where
-    R: Rng + Sized,
-{
+impl SelectionOperator for TournamentSelection {
     fn select<G, F>(
         &mut self,
         population: &mut Vec<Individual<G, F>>,
@@ -115,8 +104,10 @@ where
 
         population.clear();
 
+        let mut rng = rand::thread_rng();
+
         for _ in 0..num_iterations {
-            pool.shuffle(self.rng);
+            pool.shuffle(&mut rng);
 
             let mut winners: Vec<_> = (0..num_tournaments)
                 .map(|i| {

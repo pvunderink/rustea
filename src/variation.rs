@@ -1,6 +1,7 @@
 use crate::{bitstring::BitString, fitness::FitnessFunc, individual::Individual};
 use approx::AbsDiffEq;
 use derivative::Derivative;
+use ndarray::{Array, Ix1};
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
 use std::fmt::Debug;
@@ -91,7 +92,7 @@ impl UniformCrossover {
         let mut offspring_b = parent_b.genotype().clone();
 
         for (idx, b) in choices.iter().enumerate() {
-            if *b {
+            if b {
                 offspring_b.set(idx, parent_a.genotype().get(idx));
                 offspring_a.set(idx, parent_b.genotype().get(idx));
             }
@@ -243,3 +244,81 @@ impl_two_parent_crossover!(
         OnePointCrossover,
         TwoPointCrossover
 );
+
+#[derive(Debug)]
+struct UnivariateModel {
+    probabilities: Array<f64, Ix1>,
+}
+
+impl UnivariateModel {
+    fn estimate_from_population<G, F>(population: &Vec<Individual<G, F>>) -> Self
+    where
+        G: BitString,
+        F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
+    {
+        assert!(population.len() > 0);
+
+        let len = population.first().unwrap().genotype().len();
+
+        let counts = population
+            .into_par_iter()
+            .map(|idv| {
+                let gen: Array<_, _> = idv.genotype().iter().collect();
+                gen.map(|b| if *b { 1.0 } else { 0.0 })
+            })
+            .reduce(|| Array::zeros(len), |g1, g2| g1 + g2);
+
+        Self {
+            probabilities: counts / population.len() as f64,
+        }
+    }
+
+    fn sample<G, F, R>(&self, rng: &mut R) -> Individual<G, F>
+    where
+        G: BitString,
+        F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
+        R: Rng,
+    {
+        let genotype = self
+            .probabilities
+            .iter()
+            .map(|p| rng.gen_bool(*p))
+            .collect();
+
+        Individual::from_genotype(genotype)
+    }
+}
+
+pub struct UMDA;
+
+impl VariationOperator for UMDA {
+    fn create_offspring<G, F>(
+        &self,
+        population: &Vec<Individual<G, F>>,
+        fitness_func: &FitnessFunc<'_, G, F>,
+    ) -> Vec<Individual<G, F>>
+    where
+        Self: Sized,
+        G: BitString,
+        F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
+    {
+        let model = UnivariateModel::estimate_from_population(population);
+
+        (0..population.len())
+            .into_par_iter()
+            .map(|_| {
+                let mut rng = rand::thread_rng();
+
+                let mut child = model.sample(&mut rng);
+
+                fitness_func.evaluate(&mut child);
+
+                child
+            })
+            .collect()
+    }
+
+    fn mutates(&self) -> bool {
+        false
+    }
+}
