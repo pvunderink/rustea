@@ -1,12 +1,10 @@
-use rand::{seq::SliceRandom, Rng};
+use approx::{abs_diff_eq, AbsDiffEq};
 use rayon::prelude::*;
 use std::fmt::Debug;
 
 use crate::{
-    bitstring::BitString,
-    fitness::{ApproxEq, FitnessFunc},
-    individual::Individual,
-    selection::SelectionOperator,
+    bitstring::BitString, fitness::FitnessFunc, individual::Individual,
+    selection::SelectionOperator, variation::VariationOperator,
 };
 
 #[derive(Debug)]
@@ -16,29 +14,32 @@ pub enum Status {
     Failed,
 }
 
-pub struct SimpleGA<'a, G, F, S>
+pub struct SimpleGA<'a, G, F, S, V>
 where
-    G: BitString,                                       // genome type
-    F: Default + Copy + ApproxEq + Debug + Send + Sync, // fitness value type
-    S: SelectionOperator,                               // selection operator type
+    G: BitString,                                        // genome type
+    F: Default + Copy + AbsDiffEq + Debug + Send + Sync, // fitness value type
+    S: SelectionOperator,                                // selection operator type
 {
     population: Vec<Individual<G, F>>,
     fitness_func: &'a FitnessFunc<'a, G, F>,
     selection_operator: S,
+    variation_operator: V,
     target_fitness: Option<F>,
 }
 
-impl<'a, G, F, S> SimpleGA<'a, G, F, S>
+impl<'a, G, F, S, V> SimpleGA<'a, G, F, S, V>
 where
     G: BitString,
-    F: Default + Copy + ApproxEq + Debug + Send + Sync,
+    F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
     S: SelectionOperator,
+    V: VariationOperator,
 {
     pub fn new(
         genotype_size: usize,
         population_size: usize,
         fitness_func: &'a FitnessFunc<G, F>,
         selection_operator: S,
+        variation_operator: V,
     ) -> Self {
         // Initialize population
         let population = (0..population_size)
@@ -55,6 +56,7 @@ where
             population,
             fitness_func,
             selection_operator,
+            variation_operator,
             target_fitness: Option::None,
         }
     }
@@ -76,13 +78,11 @@ where
     }
 
     pub fn run(&mut self, evaluation_budget: usize) -> Status {
-        let mut rng = rand::thread_rng();
-
         while self.fitness_func.evaluations() < evaluation_budget {
             match self.target_fitness {
                 Some(target) => match self.best_individual() {
                     Some(idv) => {
-                        if idv.fitness().approx_eq(&target) {
+                        if abs_diff_eq!(idv.fitness(), &target) {
                             return Status::TargetReached;
                         }
                     }
@@ -91,26 +91,10 @@ where
                 None => (),
             }
 
-            // Shuffle the population
-            self.population.shuffle(&mut rng);
-            let mut population_pairs = Vec::<(_, _)>::new();
-
-            // Organize the population into pairs for crossover
-            for i in 0..self.population.len() / 2 {
-                population_pairs.push((&self.population[2 * i], &self.population[2 * i + 1]));
-            }
-
-            // Perform crossover and evaluation in parallel
-            let offspring: Vec<_> = population_pairs
-                .par_iter()
-                .flat_map(|(parent1, parent2)| {
-                    let mut children = uniform_crossover(parent1, parent2, 0.5);
-                    self.fitness_func.evaluate(&mut children[0]);
-                    self.fitness_func.evaluate(&mut children[1]);
-
-                    children
-                })
-                .collect();
+            // Perform variation
+            let offspring = self
+                .variation_operator
+                .create_offspring(&self.population, self.fitness_func);
 
             // Truncation selection
             self.selection_operator
@@ -119,94 +103,4 @@ where
 
         return Status::BudgetReached;
     }
-}
-
-pub fn uniform_crossover<G, F>(
-    parent_a: &Individual<G, F>,
-    parent_b: &Individual<G, F>,
-    probability: f64,
-) -> Vec<Individual<G, F>>
-where
-    G: BitString,
-    F: Default + Copy,
-{
-    assert_eq!(
-        parent_a.genotype().len(),
-        parent_b.genotype().len(),
-        "length of genotypes must be equal"
-    );
-
-    let mut rng = rand::thread_rng();
-
-    // Generate an array of booleans
-    // true indicates that the gene should be crossed over
-    let choices: Vec<_> = (0..parent_a.genotype().len())
-        .map(|_| rng.gen_bool(probability))
-        .collect();
-
-    // Create copies of parent a and b
-    let mut offspring_a = parent_a.genotype().clone();
-    let mut offspring_b = parent_b.genotype().clone();
-
-    for (idx, b) in choices.iter().enumerate() {
-        if *b {
-            offspring_b.set(idx, parent_a.genotype().get(idx));
-            offspring_a.set(idx, parent_b.genotype().get(idx));
-        }
-    }
-
-    vec![
-        Individual::from_genotype(offspring_a),
-        Individual::from_genotype(offspring_b),
-    ]
-}
-
-pub fn one_point_crossover<G, F>(
-    parent_a: &Individual<G, F>,
-    parent_b: &Individual<G, F>,
-) -> Vec<Individual<G, F>>
-where
-    G: BitString,
-    F: Default + Copy,
-{
-    assert_eq!(
-        parent_a.genotype().len(),
-        parent_b.genotype().len(),
-        "length of genotypes must be equal"
-    );
-
-    let mut rng = rand::thread_rng();
-
-    // Pick a crossover point (both endpoints are included)
-    let crossover_point: usize = rng.gen_range(0..parent_a.genotype().len() + 1);
-
-    // Create copies of parent a and b
-    let mut offspring_a = parent_a.genotype().clone();
-    let mut offspring_b = parent_b.genotype().clone();
-
-    for idx in 0..parent_a.genotype().len() {
-        if idx >= crossover_point {
-            offspring_b.set(idx, parent_a.genotype().get(idx));
-            offspring_a.set(idx, parent_b.genotype().get(idx));
-        }
-    }
-
-    vec![
-        Individual::from_genotype(offspring_a),
-        Individual::from_genotype(offspring_b),
-    ]
-}
-
-pub fn two_point_crossover<G, F>(
-    parent_a: &Individual<G, F>,
-    parent_b: &Individual<G, F>,
-) -> Vec<Individual<G, F>>
-where
-    G: BitString,
-    F: Default + Copy,
-{
-    let offspring = one_point_crossover(parent_a, parent_b);
-    let offspring = one_point_crossover(&offspring[0], &offspring[1]);
-
-    return offspring;
 }

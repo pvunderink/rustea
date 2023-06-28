@@ -4,29 +4,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use approx::AbsDiffEq;
+
 use crate::{bitstring::BitString, individual::Individual};
-
-pub trait ApproxEq {
-    fn approx_eq(&self, target: &Self) -> bool;
-}
-
-macro_rules! impl_int_ApproxEq {
-  (for $($t:ty),+) => {
-      $(impl ApproxEq for $t {
-        fn approx_eq(&self, target: &Self) -> bool {
-          *self == *target
-        }
-      })*
-  }
-}
-
-// Implement ApproxEq on all integer types
-impl_int_ApproxEq!(for isize, usize, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128);
 
 pub struct FitnessFunc<'a, G, F>
 where
     G: BitString,
-    F: Default + Copy + ApproxEq + Debug,
+    F: Default + Copy + AbsDiffEq + Debug,
 {
     counter: Arc<Mutex<usize>>,
     evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),
@@ -36,7 +21,7 @@ where
 impl<'a, G, F> FitnessFunc<'a, G, F>
 where
     G: BitString,
-    F: Default + Copy + ApproxEq + Debug,
+    F: Default + Copy + AbsDiffEq + Debug,
 {
     pub fn new(
         evaluation_func: &'a (dyn Fn(&mut Individual<G, F>) -> F + Send + Sync),

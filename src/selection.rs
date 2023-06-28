@@ -1,11 +1,8 @@
+use approx::AbsDiffEq;
 use rand::{seq::SliceRandom, Rng};
 use std::fmt::Debug;
 
-use crate::{
-    bitstring::BitString,
-    fitness::{ApproxEq, FitnessFunc},
-    individual::Individual,
-};
+use crate::{bitstring::BitString, fitness::FitnessFunc, individual::Individual};
 
 pub trait SelectionOperator {
     fn select<G, F>(
@@ -16,7 +13,7 @@ pub trait SelectionOperator {
     ) where
         Self: Sized,
         G: BitString,
-        F: Default + Copy + ApproxEq + Debug;
+        F: Default + Copy + AbsDiffEq + Debug;
 }
 
 pub struct TruncationSelection;
@@ -29,12 +26,28 @@ impl SelectionOperator for TruncationSelection {
         fitness_func: &FitnessFunc<'_, G, F>,
     ) where
         G: BitString,
-        F: Default + Copy + ApproxEq + Debug,
+        F: Default + Copy + AbsDiffEq + Debug,
     {
         let population_size = population.len();
         population.extend(offspring.into_iter());
         population.sort_by(|idv_a, idv_b| fitness_func.cmp(idv_a, idv_b));
         population.truncate(population_size);
+    }
+}
+
+pub struct NoSelection;
+
+impl SelectionOperator for NoSelection {
+    fn select<G, F>(
+        &mut self,
+        _: &mut Vec<Individual<G, F>>,
+        _: Vec<Individual<G, F>>,
+        _: &FitnessFunc<'_, G, F>,
+    ) where
+        Self: Sized,
+        G: BitString,
+        F: Default + Copy + AbsDiffEq + Debug,
+    {
     }
 }
 
@@ -71,7 +84,7 @@ where
         fitness_func: &FitnessFunc<'_, G, F>,
     ) where
         G: BitString,
-        F: Default + Copy + ApproxEq + Debug,
+        F: Default + Copy + AbsDiffEq + Debug,
     {
         let population_size = population.len();
         let pool_size = offspring.len()

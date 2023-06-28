@@ -3,6 +3,8 @@ mod fitness;
 mod individual;
 mod selection;
 mod simple;
+mod statistics;
+mod variation;
 
 use std::{cmp::Ordering, time::Instant};
 
@@ -10,8 +12,9 @@ use crate::{
     bitstring::{BitString, U8BitString},
     fitness::FitnessFunc,
     individual::Individual,
-    selection::{TournamentSelection, TruncationSelection},
+    selection::TruncationSelection,
     simple::SimpleGA,
+    variation::UniformCrossover,
 };
 
 fn main() {
@@ -32,15 +35,18 @@ fn main() {
     // Setup fitness function
     let mut one_max = FitnessFunc::new(&evaluate, &compare);
 
-    let mut rng = rand::thread_rng();
+    // Setup variation operator
+    let variation = UniformCrossover::default();
 
     // Setup selection operator
-    // let selection = TournamentSelection::new(2, true, &mut rng);
+    // let selection = TournamentSelection::new(8, true, &mut rng);
     let selection = TruncationSelection;
 
     // Setup genetic algorithm
     let size = 8192;
-    let mut ga = SimpleGA::new(size, 800, &mut one_max, selection);
+    let mut ga = SimpleGA::new(size, 800, &mut one_max, selection, variation);
+
+    // Defining a target fitness allows the GA to stop early
     ga.set_target_fitness(size);
 
     let now = Instant::now();
