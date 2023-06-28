@@ -33,7 +33,7 @@ impl VariationOperator for NoVariation {
         F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
     {
         let offspring = population
-            .iter()
+            .par_iter()
             .map(|idv| {
                 let mut child = idv.clone();
 

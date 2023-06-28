@@ -12,10 +12,12 @@ fn sample_multivariate_normal(
 
     let mut rng = rand::thread_rng();
 
+    // Sample 'n' standard normal variables
     let random_vec: Array<f64, Ix1> = (0..n)
         .map(|_| rng.sample(rand_distr::StandardNormal))
         .collect();
 
+    // Calculate multivariate sample using: L*v + mean
     lower.dot(&random_vec) + mean
 }
 
