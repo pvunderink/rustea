@@ -1,5 +1,5 @@
 use approx::AbsDiffEq;
-use rand::{seq::SliceRandom, Rng};
+use rand::seq::SliceRandom;
 use std::fmt::Debug;
 
 use crate::{bitstring::BitString, fitness::FitnessFunc, individual::Individual};
