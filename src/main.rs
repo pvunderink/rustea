@@ -15,6 +15,7 @@ use crate::{
 
 fn main() {
     type Genome = Vec<bool>;
+    const GENOME_SIZE: usize = 8192;
 
     fn evaluate(idv: &Individual<Genome, usize>) -> usize {
         idv.genotype().iter().filter(|bit| *bit).count()
@@ -24,16 +25,13 @@ fn main() {
         idv_b.fitness().cmp(&idv_a.fitness()) // this means higher fitness is better
     }
 
+    // Fitness function & variation operator & crossover operator
     let mut one_max = FitnessFunc::new(&evaluate, &compare);
-
     let variation = UniformCrossover::default();
     let selection = TruncationSelection;
 
-    const SIZE: usize = 8192;
-
-    let mut ga = SimpleGA::new(SIZE, 800, &mut one_max, selection, variation);
-
-    ga.set_target_fitness(SIZE); // defining a target fitness allows the GA to stop early
+    let mut ga = SimpleGA::new(GENOME_SIZE, 800, &mut one_max, selection, variation);
+    ga.set_target_fitness(GENOME_SIZE); // defining a target fitness allows the GA to stop early
 
     // Run EA
     let now = Instant::now();

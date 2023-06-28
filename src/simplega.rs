@@ -78,6 +78,7 @@ where
 
     pub fn run(&mut self, evaluation_budget: usize) -> Status {
         while self.fitness_func.evaluations() < evaluation_budget {
+            // Check if target fitness is reached
             match self.target_fitness {
                 Some(target) => match self.best_individual() {
                     Some(idv) => {
@@ -95,7 +96,7 @@ where
                 .variation_operator
                 .create_offspring(&self.population, self.fitness_func);
 
-            // Truncation selection
+            // Perform selection
             self.selection_operator
                 .select(&mut self.population, offspring, self.fitness_func);
         }

@@ -7,17 +7,17 @@ fn sample_multivariate_normal(
     covariance: &Array<f64, Ix2>,
 ) -> Array<f64, Ix1> {
     let n = mean.len();
+
     // Cholesky decomposition
     let lower = covariance.cholesky(UPLO::Lower).unwrap();
 
-    let mut rng = rand::thread_rng();
-
     // Sample 'n' standard normal variables
+    let mut rng = rand::thread_rng();
     let random_vec: Array<f64, Ix1> = (0..n)
         .map(|_| rng.sample(rand_distr::StandardNormal))
         .collect();
 
-    // Calculate multivariate sample using: L*v + mean
+    // Scale and translate the random sample (L*v + mean)
     lower.dot(&random_vec) + mean
 }
 
@@ -31,36 +31,31 @@ mod tests {
 
     #[test]
     fn mean_of_samples_approx_equals_mean_of_dist() {
+        const NUM_SAMPLES: usize = 100000; // sample size
+        const N: usize = 4; // dimension
+
         let mut rng = rand::thread_rng();
 
-        const N: usize = 4;
-
-        // Create random variance and mean vectors
+        // Create random covariance matrix and mean vector
         let mean: Array<f64, Ix1> = (0..N)
             .map(|_| rng.sample(rand_distr::StandardNormal))
             .collect();
-
         let variance: Array<f64, Ix1> = Array::ones(N) / 10.0;
         let covariance = Array::from_diag(&variance);
 
-        println!("{:?}", covariance);
-
-        const NUM_SAMPLES: usize = 100000;
-
+        // Draw samples from multivariate normal distribution
         let samples: Vec<_> = (0..NUM_SAMPLES)
             .map(|_| sample_multivariate_normal(&mean, &covariance))
             .collect();
 
+        // Calculate mean
         let mut sum_vec: Array<f64, Ix1> = Array::zeros(N);
-
         for sample in samples {
             sum_vec = sum_vec.add(&sample);
         }
         sum_vec /= NUM_SAMPLES as f64;
 
-        println!("{:?}", mean);
-        println!("{:?}", sum_vec);
-
+        // Assert that the sample mean approximately equals the true mean
         for i in 0..N {
             assert_relative_eq!(sum_vec[i], mean[i], epsilon = 0.01);
         }
