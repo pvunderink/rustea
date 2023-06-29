@@ -1,36 +1,46 @@
-use crate::{bitstring::BitString, fitness::FitnessFunc, individual::Individual};
+use crate::{
+    fitness::FitnessFunc,
+    genome::{BitString, Cartesian, Discrete, Genome},
+    individual::Individual,
+};
 use approx::AbsDiffEq;
 use derivative::Derivative;
 use ndarray::{Array, Ix1};
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 
-pub trait VariationOperator {
-    fn create_offspring<G, F>(
+pub trait VariationOperator<G, Gene>: Clone
+where
+    Self: Sized,
+    G: Genome<Gene>,
+    Gene: Clone,
+{
+    fn create_offspring<F>(
         &self,
-        population: &Vec<Individual<G, F>>,
-        fitness_func: &FitnessFunc<'_, G, F>,
-    ) -> Vec<Individual<G, F>>
+        population: &Vec<Individual<G, Gene, F>>,
+        fitness_func: &FitnessFunc<'_, G, Gene, F>,
+    ) -> Vec<Individual<G, Gene, F>>
     where
-        Self: Sized,
-        G: BitString,
         F: Default + Copy + AbsDiffEq + Debug + Send + Sync;
 
     fn mutates(&self) -> bool;
 }
 
+#[derive(Clone)]
 pub struct NoVariation;
 
-impl VariationOperator for NoVariation {
-    fn create_offspring<G, F>(
+impl<G, Gene> VariationOperator<G, Gene> for NoVariation
+where
+    G: Genome<Gene>,
+    Gene: Clone + Send + Sync,
+{
+    fn create_offspring<F>(
         &self,
-        population: &Vec<Individual<G, F>>,
-        fitness_func: &FitnessFunc<'_, G, F>,
-    ) -> Vec<Individual<G, F>>
+        population: &Vec<Individual<G, Gene, F>>,
+        fitness_func: &FitnessFunc<'_, G, Gene, F>,
+    ) -> Vec<Individual<G, Gene, F>>
     where
-        Self: Sized,
-        G: BitString,
         F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
     {
         let offspring = population
@@ -52,25 +62,38 @@ impl VariationOperator for NoVariation {
     }
 }
 
-#[derive(Derivative)]
+#[derive(Derivative, Clone)]
 #[derivative(Default)]
-pub struct UniformCrossover {
+pub struct UniformCrossover<G, Gene>
+where
+    G: Genome<Gene> + Discrete + Cartesian<Gene>,
+    Gene: Clone,
+{
     #[derivative(Default(value = "0.5"))]
     probability: f64,
+    _genome: PhantomData<G>,
+    _gene: PhantomData<Gene>,
 }
 
-impl UniformCrossover {
+impl<G, Gene> UniformCrossover<G, Gene>
+where
+    G: Genome<Gene> + Discrete + Cartesian<Gene>,
+    Gene: Clone,
+{
     pub fn with_probability(probability: f64) -> Self {
-        Self { probability }
+        Self {
+            probability,
+            _gene: PhantomData::default(),
+            _genome: PhantomData::default(),
+        }
     }
 
-    fn crossover<G, F>(
+    fn crossover<F>(
         &self,
-        parent_a: &Individual<G, F>,
-        parent_b: &Individual<G, F>,
-    ) -> Vec<Individual<G, F>>
+        parent_a: &Individual<G, Gene, F>,
+        parent_b: &Individual<G, Gene, F>,
+    ) -> Vec<Individual<G, Gene, F>>
     where
-        G: BitString,
         F: Default + Copy,
     {
         assert_eq!(
@@ -105,16 +128,27 @@ impl UniformCrossover {
     }
 }
 
-pub struct OnePointCrossover;
+#[derive(Default, Clone)]
+pub struct OnePointCrossover<G, Gene>
+where
+    G: Genome<Gene> + Discrete + Cartesian<Gene>,
+    Gene: Clone,
+{
+    _genome: PhantomData<G>,
+    _gene: PhantomData<Gene>,
+}
 
-impl OnePointCrossover {
-    fn crossover<G, F>(
+impl<G, Gene> OnePointCrossover<G, Gene>
+where
+    G: Genome<Gene> + Discrete + Cartesian<Gene>,
+    Gene: Clone,
+{
+    fn crossover<F>(
         &self,
-        parent_a: &Individual<G, F>,
-        parent_b: &Individual<G, F>,
-    ) -> Vec<Individual<G, F>>
+        parent_a: &Individual<G, Gene, F>,
+        parent_b: &Individual<G, Gene, F>,
+    ) -> Vec<Individual<G, Gene, F>>
     where
-        G: BitString,
         F: Default + Copy,
     {
         assert_eq!(
@@ -146,16 +180,27 @@ impl OnePointCrossover {
     }
 }
 
-pub struct TwoPointCrossover;
+#[derive(Default, Clone)]
+pub struct TwoPointCrossover<G, Gene>
+where
+    G: Genome<Gene> + Discrete + Cartesian<Gene>,
+    Gene: Clone,
+{
+    _genome: PhantomData<G>,
+    _gene: PhantomData<Gene>,
+}
 
-impl TwoPointCrossover {
-    fn crossover<G, F>(
+impl<G, Gene> TwoPointCrossover<G, Gene>
+where
+    G: Genome<Gene> + Discrete + Cartesian<Gene>,
+    Gene: Clone,
+{
+    fn crossover<F>(
         &self,
-        parent_a: &Individual<G, F>,
-        parent_b: &Individual<G, F>,
-    ) -> Vec<Individual<G, F>>
+        parent_a: &Individual<G, Gene, F>,
+        parent_b: &Individual<G, Gene, F>,
+    ) -> Vec<Individual<G, Gene, F>>
     where
-        G: BitString,
         F: Default + Copy,
     {
         assert_eq!(
@@ -192,57 +237,61 @@ impl TwoPointCrossover {
 
 macro_rules! impl_two_parent_crossover {
     (for $($t:ty),+) => {
-        $(impl VariationOperator for $t {
-            fn create_offspring<G, F>(
-                &self,
-                population: &Vec<Individual<G, F>>,
-                fitness_func: &FitnessFunc<'_, G, F>,
-            ) -> Vec<Individual<G, F>>
+        $(
+            impl<G, Gene> VariationOperator<G, Gene> for $t
             where
-                Self: Sized,
-                G: BitString,
-                F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
+                G: Genome<Gene> + Discrete + Cartesian<Gene>,
+                Gene: Clone + Send + Sync
             {
-                let mut rng = rand::thread_rng();
-                // Shuffle the population
-                let mut population: Vec<_> = population.iter().collect();
-                population.shuffle(&mut rng);
+                fn create_offspring<F>(
+                    &self,
+                    population: &Vec<Individual<G, Gene, F>>,
+                    fitness_func: &FitnessFunc<'_, G, Gene, F>,
+                ) -> Vec<Individual<G, Gene, F>>
+                where
+                    Self: Sized,
+                    F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
+                {
+                    let mut rng = rand::thread_rng();
+                    // Shuffle the population
+                    let mut population: Vec<_> = population.iter().collect();
+                    population.shuffle(&mut rng);
 
-                let mut population_pairs = Vec::<(_, _)>::new();
+                    let mut population_pairs = Vec::<(_, _)>::new();
 
-                // Organize the population into pairs for crossover
-                for i in 0..population.len() / 2 {
-                    population_pairs.push((population[2 * i], population[2 * i + 1]));
+                    // Organize the population into pairs for crossover
+                    for i in 0..population.len() / 2 {
+                        population_pairs.push((population[2 * i], population[2 * i + 1]));
+                    }
+
+                    // Perform crossover and evaluation in parallel
+                    let offspring: Vec<_> = population_pairs
+                        .par_iter()
+                        .flat_map(|(parent1, parent2)| {
+                            let mut children = self.crossover(parent1, parent2);
+
+                            fitness_func.evaluate(&mut children[0]);
+                            fitness_func.evaluate(&mut children[1]);
+
+                            return children
+                        })
+                        .collect();
+
+                    offspring
                 }
 
-                // Perform crossover and evaluation in parallel
-                let offspring: Vec<_> = population_pairs
-                    .par_iter()
-                    .flat_map(|(parent1, parent2)| {
-                        let mut children = self.crossover(parent1, parent2);
-
-                        fitness_func.evaluate(&mut children[0]);
-                        fitness_func.evaluate(&mut children[1]);
-
-                        return children
-                    })
-                    .collect();
-
-                offspring
-            }
-
-            fn mutates(&self) -> bool {
-                false
-            }
+                fn mutates(&self) -> bool {
+                    false
+                }
         })*
     }
   }
 
 impl_two_parent_crossover!(
     for
-        UniformCrossover,
-        OnePointCrossover,
-        TwoPointCrossover
+        UniformCrossover<G, Gene>,
+        OnePointCrossover<G, Gene>,
+        TwoPointCrossover<G, Gene>
 );
 
 #[derive(Debug)]
@@ -251,7 +300,7 @@ struct UnivariateModel {
 }
 
 impl UnivariateModel {
-    fn estimate_from_population<G, F>(population: &Vec<Individual<G, F>>) -> Self
+    fn estimate_from_population<G, F>(population: &Vec<Individual<G, bool, F>>) -> Self
     where
         G: BitString,
         F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
@@ -273,7 +322,7 @@ impl UnivariateModel {
         }
     }
 
-    fn sample<G, F, R>(&self, rng: &mut R) -> Individual<G, F>
+    fn sample<G, F, R>(&self, rng: &mut R) -> Individual<G, bool, F>
     where
         G: BitString,
         F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
@@ -289,17 +338,26 @@ impl UnivariateModel {
     }
 }
 
-pub struct UMDA;
+#[derive(Default, Clone)]
+pub struct UMDA<G>
+where
+    G: BitString,
+{
+    _genome: PhantomData<G>,
+    // _gene: PhantomData<Gene>,
+}
 
-impl VariationOperator for UMDA {
-    fn create_offspring<G, F>(
+impl<G> VariationOperator<G, bool> for UMDA<G>
+where
+    G: BitString,
+{
+    fn create_offspring<F>(
         &self,
-        population: &Vec<Individual<G, F>>,
-        fitness_func: &FitnessFunc<'_, G, F>,
-    ) -> Vec<Individual<G, F>>
+        population: &Vec<Individual<G, bool, F>>,
+        fitness_func: &FitnessFunc<'_, G, bool, F>,
+    ) -> Vec<Individual<G, bool, F>>
     where
         Self: Sized,
-        G: BitString,
         F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
     {
         let model = UnivariateModel::estimate_from_population(population);

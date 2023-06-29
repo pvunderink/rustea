@@ -2,30 +2,48 @@ use approx::AbsDiffEq;
 use rand::seq::SliceRandom;
 use std::fmt::Debug;
 
-use crate::{bitstring::BitString, fitness::FitnessFunc, individual::Individual};
+use crate::{fitness::FitnessFunc, genome::Genome, individual::Individual};
 
-pub trait SelectionOperator {
-    fn select<G, F>(
+pub trait SelectionOperator: Clone {
+    fn select<G, Gene, F>(
         &mut self,
-        population: &mut Vec<Individual<G, F>>,
-        offspring: Vec<Individual<G, F>>,
-        fitness_func: &FitnessFunc<'_, G, F>,
+        population: &mut Vec<Individual<G, Gene, F>>,
+        offspring: Vec<Individual<G, Gene, F>>,
+        fitness_func: &FitnessFunc<'_, G, Gene, F>,
     ) where
         Self: Sized,
-        G: BitString,
+        G: Genome<Gene>,
         F: Default + Copy + AbsDiffEq + Debug;
 }
 
+#[derive(Clone)]
+pub struct NoSelection;
+
+impl SelectionOperator for NoSelection {
+    fn select<G, Gene, F>(
+        &mut self,
+        _: &mut Vec<Individual<G, Gene, F>>,
+        _: Vec<Individual<G, Gene, F>>,
+        _: &FitnessFunc<'_, G, Gene, F>,
+    ) where
+        Self: Sized,
+        G: Genome<Gene>,
+        F: Default + Copy + AbsDiffEq + Debug,
+    {
+    }
+}
+
+#[derive(Clone)]
 pub struct TruncationSelection;
 
 impl SelectionOperator for TruncationSelection {
-    fn select<G, F>(
+    fn select<G, Gene, F>(
         &mut self,
-        population: &mut Vec<Individual<G, F>>,
-        offspring: Vec<Individual<G, F>>,
-        fitness_func: &FitnessFunc<'_, G, F>,
+        population: &mut Vec<Individual<G, Gene, F>>,
+        offspring: Vec<Individual<G, Gene, F>>,
+        fitness_func: &FitnessFunc<'_, G, Gene, F>,
     ) where
-        G: BitString,
+        G: Genome<Gene>,
         F: Default + Copy + AbsDiffEq + Debug,
     {
         let population_size = population.len();
@@ -35,44 +53,20 @@ impl SelectionOperator for TruncationSelection {
     }
 }
 
-pub struct NoSelection;
-
-impl SelectionOperator for NoSelection {
-    fn select<G, F>(
-        &mut self,
-        _: &mut Vec<Individual<G, F>>,
-        _: Vec<Individual<G, F>>,
-        _: &FitnessFunc<'_, G, F>,
-    ) where
-        Self: Sized,
-        G: BitString,
-        F: Default + Copy + AbsDiffEq + Debug,
-    {
-    }
-}
-
+#[derive(Clone)]
 pub struct TournamentSelection {
     tournament_size: usize,
     include_parents: bool,
 }
 
-impl TournamentSelection {
-    pub fn new(tournament_size: usize, include_parents: bool) -> Self {
-        Self {
-            tournament_size,
-            include_parents,
-        }
-    }
-}
-
 impl SelectionOperator for TournamentSelection {
-    fn select<G, F>(
+    fn select<G, Gene, F>(
         &mut self,
-        population: &mut Vec<Individual<G, F>>,
-        offspring: Vec<Individual<G, F>>,
-        fitness_func: &FitnessFunc<'_, G, F>,
+        population: &mut Vec<Individual<G, Gene, F>>,
+        offspring: Vec<Individual<G, Gene, F>>,
+        fitness_func: &FitnessFunc<'_, G, Gene, F>,
     ) where
-        G: BitString,
+        G: Genome<Gene>,
         F: Default + Copy + AbsDiffEq + Debug,
     {
         let population_size = population.len();

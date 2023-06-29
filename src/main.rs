@@ -1,5 +1,5 @@
-mod bitstring;
 mod fitness;
+mod genome;
 mod individual;
 mod selection;
 mod simplega;
@@ -9,19 +9,24 @@ mod variation;
 use std::{cmp::Ordering, time::Instant};
 
 use crate::{
-    bitstring::BitString, fitness::FitnessFunc, individual::Individual,
-    selection::TruncationSelection, simplega::SimpleGA, variation::UniformCrossover,
+    fitness::FitnessFunc, individual::Individual, selection::TruncationSelection,
+    simplega::SimpleGA, variation::UniformCrossover,
 };
 
 fn main() {
-    type Genome = Vec<bool>;
+    type Gene = bool;
+    type Genome = Vec<Gene>;
     const GENOME_SIZE: usize = 8192;
+    const POPULATION_SIZE: usize = 800;
 
-    fn evaluate(idv: &Individual<Genome, usize>) -> usize {
-        idv.genotype().iter().filter(|bit| *bit).count()
+    fn evaluate(idv: &Individual<Genome, Gene, usize>) -> usize {
+        idv.genotype().iter().filter(|bit| **bit).count()
     }
 
-    fn compare(idv_a: &Individual<Genome, usize>, idv_b: &Individual<Genome, usize>) -> Ordering {
+    fn compare(
+        idv_a: &Individual<Genome, Gene, usize>,
+        idv_b: &Individual<Genome, Gene, usize>,
+    ) -> Ordering {
         idv_b.fitness().cmp(&idv_a.fitness()) // this means higher fitness is better
     }
 
@@ -30,7 +35,8 @@ fn main() {
     let variation = UniformCrossover::default();
     let selection = TruncationSelection;
 
-    let mut ga = SimpleGA::new(GENOME_SIZE, 800, &mut one_max, selection, variation);
+    let ga = SimpleGA::new(&mut one_max, selection, variation);
+    let mut ga = ga.random_population(POPULATION_SIZE, GENOME_SIZE);
     ga.set_target_fitness(GENOME_SIZE); // defining a target fitness allows the GA to stop early
 
     // Run EA

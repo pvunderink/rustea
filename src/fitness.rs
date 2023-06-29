@@ -6,26 +6,27 @@ use std::{
 
 use approx::AbsDiffEq;
 
-use crate::{bitstring::BitString, individual::Individual};
+use crate::{genome::Genome, individual::Individual};
 
-pub struct FitnessFunc<'a, G, F>
+pub struct FitnessFunc<'a, G, Gene, F>
 where
-    G: BitString,
+    G: Genome<Gene>,
     F: Default + Copy + AbsDiffEq + Debug,
 {
     counter: Arc<Mutex<usize>>,
-    evaluation_func: &'a (dyn Fn(&Individual<G, F>) -> F + Send + Sync),
-    comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering + Send + Sync),
+    evaluation_func: &'a (dyn Fn(&Individual<G, Gene, F>) -> F + Send + Sync),
+    comparison_func:
+        &'a (dyn Fn(&Individual<G, Gene, F>, &Individual<G, Gene, F>) -> Ordering + Send + Sync),
 }
 
-impl<'a, G, F> FitnessFunc<'a, G, F>
+impl<'a, G, Gene, F> FitnessFunc<'a, G, Gene, F>
 where
-    G: BitString,
+    G: Genome<Gene>,
     F: Default + Copy + AbsDiffEq + Debug,
 {
     pub fn new(
-        evaluation_func: &'a (dyn Fn(&Individual<G, F>) -> F + Send + Sync),
-        comparison_func: &'a (dyn Fn(&Individual<G, F>, &Individual<G, F>) -> Ordering
+        evaluation_func: &'a (dyn Fn(&Individual<G, Gene, F>) -> F + Send + Sync),
+        comparison_func: &'a (dyn Fn(&Individual<G, Gene, F>, &Individual<G, Gene, F>) -> Ordering
                  + Send
                  + Sync),
     ) -> Self {
@@ -36,7 +37,7 @@ where
         }
     }
 
-    pub fn evaluate(&self, individual: &mut Individual<G, F>) -> F {
+    pub fn evaluate(&self, individual: &mut Individual<G, Gene, F>) -> F {
         let fitness = (self.evaluation_func)(individual);
         individual.update_fitness(fitness);
 
@@ -50,7 +51,7 @@ where
         *self.counter.lock().unwrap()
     }
 
-    pub fn cmp(&self, idv_a: &Individual<G, F>, idv_b: &Individual<G, F>) -> Ordering {
+    pub fn cmp(&self, idv_a: &Individual<G, Gene, F>, idv_b: &Individual<G, Gene, F>) -> Ordering {
         (self.comparison_func)(idv_a, idv_b)
     }
 }
