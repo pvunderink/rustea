@@ -1,6 +1,7 @@
 use approx::{abs_diff_eq, AbsDiffEq};
+use rand_distr::uniform::SampleUniform;
 use rayon::prelude::*;
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData, ops::Range};
 
 use crate::{
     fitness::FitnessFunc,
@@ -136,6 +137,42 @@ where
             .map(|_| {
                 let mut rng = rand::thread_rng();
                 let mut idv = Individual::random(&mut rng, genome_size);
+                self.fitness_func.evaluate(&mut idv);
+                idv
+            })
+            .collect();
+
+        SimpleGA {
+            population: population,
+            fitness_func: self.fitness_func,
+            selection_operator: self.selection_operator.clone(),
+            variation_operator: self.variation_operator.clone(),
+            target_fitness: self.target_fitness,
+            _state: PhantomData::default(),
+        }
+    }
+}
+
+impl<'a, G, Gene, F, S, V> SimpleGA<'a, G, Gene, F, S, V, Uninitialized>
+where
+    G: Genome<Gene>, // genome type
+    Gene: Clone + Send + Sync + PartialOrd<Gene> + SampleUniform,
+    F: Default + Copy + AbsDiffEq + Debug + Send + Sync,
+    S: SelectionOperator,
+    V: VariationOperator<G, Gene>,
+{
+    pub fn random_population_with_range(
+        &self,
+        population_size: usize,
+        genome_size: usize,
+        range: Range<Gene>,
+    ) -> SimpleGA<'a, G, Gene, F, S, V, Initialized> {
+        // Initialize population
+        let population = (0..population_size)
+            .into_par_iter()
+            .map(|_| {
+                let mut rng = rand::thread_rng();
+                let mut idv = Individual::random_with_range(&mut rng, range.clone(), genome_size);
                 self.fitness_func.evaluate(&mut idv);
                 idv
             })

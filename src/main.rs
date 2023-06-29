@@ -20,7 +20,7 @@ fn main() {
     const POPULATION_SIZE: usize = 800;
 
     fn evaluate(idv: &Individual<Genome, Gene, usize>) -> usize {
-        idv.genotype().iter().filter(|bit| **bit).count()
+        idv.genotype().iter().filter(|bit| **bit).count() // count the number of ones in the bitstring
     }
 
     fn compare(

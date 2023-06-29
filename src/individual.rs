@@ -1,6 +1,7 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Range};
 
 use rand::Rng;
+use rand_distr::uniform::SampleUniform;
 
 use crate::genome::{Genome, RandomInit};
 
@@ -41,6 +42,20 @@ where
     }
 }
 
+impl<G, Gene, F> Clone for Individual<G, Gene, F>
+where
+    G: Genome<Gene>,
+    F: Default + Copy,
+{
+    fn clone(&self) -> Self {
+        Self {
+            genotype: self.genotype.clone(),
+            fitness: self.fitness.clone(),
+            _gene: PhantomData::default(),
+        }
+    }
+}
+
 impl<G, Gene, F> Individual<G, Gene, F>
 where
     G: Genome<Gene> + RandomInit,
@@ -59,15 +74,20 @@ where
     }
 }
 
-impl<G, Gene, F> Clone for Individual<G, Gene, F>
+impl<G, Gene, F> Individual<G, Gene, F>
 where
     G: Genome<Gene>,
+    Gene: Clone + PartialOrd<Gene> + SampleUniform,
     F: Default + Copy,
 {
-    fn clone(&self) -> Self {
-        Self {
-            genotype: self.genotype.clone(),
-            fitness: self.fitness.clone(),
+    pub fn random_with_range<R>(rng: &mut R, range: Range<Gene>, len: usize) -> Self
+    where
+        R: Rng + ?Sized,
+    {
+        let genotype = (0..len).map(|_| rng.gen_range(range.clone())).collect();
+        Individual {
+            genotype,
+            fitness: F::default(),
             _gene: PhantomData::default(),
         }
     }

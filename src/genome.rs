@@ -10,9 +10,9 @@ pub trait Cartesian<Gene>: Send + Sync {
     fn set(&mut self, index: usize, gene: Gene);
 }
 
-macro_rules! impl_discrete {
-    (for $($t:ty),+) => {
-        $(impl Discrete for $t {})*
+macro_rules! impl_trait {
+    ($tr:ty => for $($t:ty),+) => {
+        $(impl $tr for $t {})*
     }
   }
 
@@ -25,6 +25,33 @@ macro_rules! impl_cartesian {
         })*
     }
 }
+
+macro_rules! impl_random_init {
+    (for $($t:ty),+) => {
+        $(impl RandomInit for $t {
+            fn random<R>(rng: &mut R, len: usize) -> Self
+            where
+                R: Rng + ?Sized,
+            {
+                (0..len).map(|_| rng.gen()).collect()
+            }
+        })*
+    }
+  }
+
+macro_rules! impl_genome {
+    (for $($t:ty;$g:ty),+) => {
+        $(impl Genome<$g> for $t {
+            fn get(&self, index: usize) -> $g {
+                self[index]
+            }
+
+            fn len(&self) -> usize {
+                self.len()
+            }
+        })*
+    }
+  }
 
 pub trait RandomInit {
     fn random<R>(rng: &mut R, len: usize) -> Self
@@ -212,33 +239,6 @@ impl FromIterator<bool> for U8BitString {
     }
 }
 
-macro_rules! impl_random_init {
-    (for $($t:ty),+) => {
-        $(impl RandomInit for $t {
-            fn random<R>(rng: &mut R, len: usize) -> Self
-            where
-                R: Rng + ?Sized,
-            {
-                (0..len).map(|_| rng.gen()).collect()
-            }
-        })*
-    }
-  }
-
-macro_rules! impl_bool_genome {
-    (for $($t:ty),+) => {
-        $(impl Genome<bool> for $t {
-            fn get(&self, index: usize) -> bool {
-                self[index]
-            }
-
-            fn len(&self) -> usize {
-                self.len()
-            }
-        })*
-    }
-  }
-
 impl BitString for Vec<bool> {
     fn zeros(len: usize) -> Self {
         vec![false; len]
@@ -267,10 +267,20 @@ impl BitString for Array<bool, Ix1> {
     }
 }
 
-impl_bool_genome!(for Vec<bool>, Array<bool, Ix1>);
+macro_rules! impl_cartesian_genome_for_vec_types {
+    ($tr:ty => for $($g:ty),+) => {
+        $(
+            impl_genome!(for Vec<$g>; $g, Array<$g, Ix1>; $g);
+            impl_cartesian!(for Vec<$g>; $g, Array<$g, Ix1>; $g);
+            impl_trait!(Discrete => for Vec<$g>, Array<$g, Ix1>);
+        )*
+    };
+}
+
+impl_cartesian_genome_for_vec_types!(Discrete => for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, usize, isize);
+impl_cartesian_genome_for_vec_types!(Real => for f32, f64);
 impl_random_init!(for Vec<bool>, Array<bool, Ix1>, U8BitString);
-impl_cartesian!(for Vec<bool>; bool, Array<bool, Ix1>; bool);
-impl_discrete!(for U8BitString, Vec<bool>, Array<bool, Ix1>);
+impl_trait!(Discrete => for U8BitString);
 
 #[cfg(test)]
 mod tests {
