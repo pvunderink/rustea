@@ -440,7 +440,7 @@ macro_rules! impl_cartesian_genotype_for_vec_types {
             impl_genome!(for Vec<Gene<$g>>; $g, Array<Gene<$g>, Ix1>; $g);
             impl_genotype!(for Vec<$g>; $g, Array<$g, Ix1>; $g);
             impl_cartesian!(for Vec<$g>; $g, Array<$g, Ix1>; $g);
-            impl_trait!(Discrete => for Vec<$g>, Array<$g, Ix1>);
+            impl_trait!($tr => for Vec<$g>, Array<$g, Ix1>);
         )*
     };
 }
