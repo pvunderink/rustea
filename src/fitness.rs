@@ -1,44 +1,52 @@
 use std::{
     cmp::Ordering,
     fmt::Debug,
+    marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
-use approx::AbsDiffEq;
+use crate::{
+    genome::{Genotype, SampleUniformRange},
+    individual::Individual,
+};
 
-use crate::{genome::Genome, individual::Individual};
-
-pub struct FitnessFunc<'a, G, Gene, F>
-where
-    G: Genome<Gene>,
-    F: Default + Copy + AbsDiffEq + Debug,
-{
-    counter: Arc<Mutex<usize>>,
-    evaluation_func: &'a (dyn Fn(&Individual<G, Gene, F>) -> F + Send + Sync),
-    comparison_func:
-        &'a (dyn Fn(&Individual<G, Gene, F>, &Individual<G, Gene, F>) -> Ordering + Send + Sync),
+pub enum OptimizationGoal {
+    MINIMIZE,
+    MAXIMIZE,
 }
 
-impl<'a, G, Gene, F> FitnessFunc<'a, G, Gene, F>
+pub struct FitnessFunc<'a, Gnt, T, F>
 where
-    G: Genome<Gene>,
-    F: Default + Copy + AbsDiffEq + Debug,
+    Gnt: Genotype<T>,
+    T: Copy + Send + Sync + SampleUniformRange,
+    F: Default + Copy + Debug,
+{
+    counter: Arc<Mutex<usize>>,
+    evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
+    goal: OptimizationGoal,
+    _gene: PhantomData<T>,
+}
+
+impl<'a, Gnt, T, F> FitnessFunc<'a, Gnt, T, F>
+where
+    Gnt: Genotype<T>,
+    T: Copy + Send + Sync + SampleUniformRange,
+    F: Default + Copy + Debug + PartialOrd,
 {
     pub fn new(
-        evaluation_func: &'a (dyn Fn(&Individual<G, Gene, F>) -> F + Send + Sync),
-        comparison_func: &'a (dyn Fn(&Individual<G, Gene, F>, &Individual<G, Gene, F>) -> Ordering
-                 + Send
-                 + Sync),
+        evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
+        goal: OptimizationGoal,
     ) -> Self {
         Self {
             counter: Arc::new(Mutex::new(0)),
             evaluation_func,
-            comparison_func,
+            goal,
+            _gene: PhantomData::default(),
         }
     }
 
-    pub fn evaluate(&self, individual: &mut Individual<G, Gene, F>) -> F {
-        let fitness = (self.evaluation_func)(individual);
+    pub fn evaluate(&self, individual: &mut Individual<Gnt, T, F>) -> F {
+        let fitness = (self.evaluation_func)(individual.genotype());
         individual.update_fitness(fitness);
 
         let mut counter = self.counter.lock().unwrap();
@@ -51,7 +59,10 @@ where
         *self.counter.lock().unwrap()
     }
 
-    pub fn cmp(&self, idv_a: &Individual<G, Gene, F>, idv_b: &Individual<G, Gene, F>) -> Ordering {
-        (self.comparison_func)(idv_a, idv_b)
+    pub fn cmp(&self, a: &F, b: &F) -> Ordering {
+        match self.goal {
+            OptimizationGoal::MINIMIZE => a.partial_cmp(&b).unwrap(),
+            OptimizationGoal::MAXIMIZE => b.partial_cmp(&a).unwrap(),
+        }
     }
 }

@@ -6,38 +6,54 @@ mod simplega;
 mod statistics;
 mod variation;
 
-use std::{cmp::Ordering, time::Instant};
+use std::time::Instant;
 
 use crate::{
-    fitness::FitnessFunc, individual::Individual, selection::TruncationSelection,
-    simplega::SimpleGA, variation::UniformCrossover,
+    fitness::OptimizationGoal,
+    genome::{Gene, GeneRange, Genome as _},
+    selection::TruncationSelection,
+    simplega::SimpleGABuilder,
+    variation::UniformCrossover,
 };
 
+type GeneType = bool;
+type Genotype = Vec<GeneType>;
+type Genome = Vec<Gene<GeneType>>;
+
+const GENOME_SIZE: usize = 8192;
+const POPULATION_SIZE: usize = 800;
+const TARGET: usize = GENOME_SIZE;
+
+fn one_max(genotype: &Genotype) -> usize {
+    genotype.iter().filter(|bit| **bit).count() // count the number of ones in the bitstring
+}
+
+fn deceptive_trap(genotype: &Genotype) -> usize {
+    let fitness = one_max(genotype);
+
+    if fitness == genotype.len() {
+        return 0;
+    } else if fitness == 0 {
+        return genotype.len();
+    }
+    return fitness;
+}
+
 fn main() {
-    type Gene = bool;
-    type Genome = Vec<Gene>;
-    const GENOME_SIZE: usize = 8192;
-    const POPULATION_SIZE: usize = 800;
+    let builder = SimpleGABuilder::new();
 
-    fn evaluate(idv: &Individual<Genome, Gene, usize>) -> usize {
-        idv.genotype().iter().filter(|bit| **bit).count() // count the number of ones in the bitstring
-    }
-
-    fn compare(
-        idv_a: &Individual<Genome, Gene, usize>,
-        idv_b: &Individual<Genome, Gene, usize>,
-    ) -> Ordering {
-        idv_b.fitness().cmp(&idv_a.fitness()) // this means higher fitness is better
-    }
-
-    // Fitness function & variation operator & crossover operator
-    let mut one_max = FitnessFunc::new(&evaluate, &compare);
-    let variation = UniformCrossover::default();
-    let selection = TruncationSelection;
-
-    let ga = SimpleGA::new(&mut one_max, selection, variation);
-    let mut ga = ga.random_population(POPULATION_SIZE, GENOME_SIZE);
-    ga.set_target_fitness(GENOME_SIZE); // defining a target fitness allows the GA to stop early
+    let mut ga = builder
+        .genome(Genome::uniform_with_range(
+            GENOME_SIZE,
+            range!(false..=true),
+        ))
+        .random_population(POPULATION_SIZE)
+        .evaluation_function(&one_max)
+        .goal(OptimizationGoal::MAXIMIZE)
+        .selection(TruncationSelection)
+        .variation(UniformCrossover::default())
+        .target(TARGET) // defining a target fitness allows the GA to stop early
+        .build();
 
     // Run EA
     let now = Instant::now();

@@ -1,34 +1,38 @@
-use approx::AbsDiffEq;
 use rand::seq::SliceRandom;
 use std::fmt::Debug;
 
-use crate::{fitness::FitnessFunc, genome::Genome, individual::Individual};
+use crate::{
+    fitness::FitnessFunc,
+    genome::{Genotype, SampleUniformRange},
+    individual::Individual,
+};
 
 pub trait SelectionOperator: Clone {
-    fn select<G, Gene, F>(
+    fn select<Gnt, T, F>(
         &mut self,
-        population: &mut Vec<Individual<G, Gene, F>>,
-        offspring: Vec<Individual<G, Gene, F>>,
-        fitness_func: &FitnessFunc<'_, G, Gene, F>,
+        population: &mut Vec<Individual<Gnt, T, F>>,
+        offspring: Vec<Individual<Gnt, T, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
     ) where
         Self: Sized,
-        G: Genome<Gene>,
-        F: Default + Copy + AbsDiffEq + Debug;
+        Gnt: Genotype<T>,
+        T: Copy + Send + Sync + SampleUniformRange,
+        F: Default + Copy + PartialOrd + Debug;
 }
 
 #[derive(Clone)]
 pub struct NoSelection;
 
 impl SelectionOperator for NoSelection {
-    fn select<G, Gene, F>(
+    fn select<Gnt, T, F>(
         &mut self,
-        _: &mut Vec<Individual<G, Gene, F>>,
-        _: Vec<Individual<G, Gene, F>>,
-        _: &FitnessFunc<'_, G, Gene, F>,
+        _: &mut Vec<Individual<Gnt, T, F>>,
+        _: Vec<Individual<Gnt, T, F>>,
+        _: &FitnessFunc<'_, Gnt, T, F>,
     ) where
-        Self: Sized,
-        G: Genome<Gene>,
-        F: Default + Copy + AbsDiffEq + Debug,
+        Gnt: Genotype<T>,
+        T: Copy + Send + Sync + SampleUniformRange,
+        F: Default + Copy + PartialOrd + Debug,
     {
     }
 }
@@ -37,18 +41,20 @@ impl SelectionOperator for NoSelection {
 pub struct TruncationSelection;
 
 impl SelectionOperator for TruncationSelection {
-    fn select<G, Gene, F>(
+    fn select<Gnt, T, F>(
         &mut self,
-        population: &mut Vec<Individual<G, Gene, F>>,
-        offspring: Vec<Individual<G, Gene, F>>,
-        fitness_func: &FitnessFunc<'_, G, Gene, F>,
+        population: &mut Vec<Individual<Gnt, T, F>>,
+        offspring: Vec<Individual<Gnt, T, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
     ) where
-        G: Genome<Gene>,
-        F: Default + Copy + AbsDiffEq + Debug,
+        Gnt: Genotype<T>,
+        T: Copy + Send + Sync + SampleUniformRange,
+
+        F: Default + Copy + PartialOrd + Debug,
     {
         let population_size = population.len();
         population.extend(offspring.into_iter());
-        population.sort_by(|idv_a, idv_b| fitness_func.cmp(idv_a, idv_b));
+        population.sort_by(|idv_a, idv_b| fitness_func.cmp(&idv_a.fitness(), &idv_b.fitness()));
         population.truncate(population_size);
     }
 }
@@ -60,14 +66,15 @@ pub struct TournamentSelection {
 }
 
 impl SelectionOperator for TournamentSelection {
-    fn select<G, Gene, F>(
+    fn select<Gnt, T, F>(
         &mut self,
-        population: &mut Vec<Individual<G, Gene, F>>,
-        offspring: Vec<Individual<G, Gene, F>>,
-        fitness_func: &FitnessFunc<'_, G, Gene, F>,
+        population: &mut Vec<Individual<Gnt, T, F>>,
+        offspring: Vec<Individual<Gnt, T, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
     ) where
-        G: Genome<Gene>,
-        F: Default + Copy + AbsDiffEq + Debug,
+        Gnt: Genotype<T>,
+        T: Copy + Send + Sync + SampleUniformRange,
+        F: Default + Copy + PartialOrd + Debug,
     {
         let population_size = population.len();
         let pool_size = offspring.len()
@@ -108,7 +115,7 @@ impl SelectionOperator for TournamentSelection {
                     let winner = pool
                         [self.tournament_size * i..self.tournament_size * i + self.tournament_size]
                         .iter()
-                        .min_by(|idv_a, idv_b| fitness_func.cmp(idv_a, idv_b))
+                        .min_by(|idv_a, idv_b| fitness_func.cmp(&idv_a.fitness(), &idv_b.fitness()))
                         .unwrap();
 
                     winner.clone()

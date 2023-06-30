@@ -1,27 +1,26 @@
-use std::{marker::PhantomData, ops::Range};
+use std::marker::PhantomData;
 
-use rand::Rng;
-use rand_distr::uniform::SampleUniform;
-
-use crate::genome::{Genome, RandomInit};
+use crate::genome::{Genome, Genotype, SampleUniformRange};
 
 #[derive(Debug)]
-pub struct Individual<G, Gene, F>
+pub struct Individual<Gnt, T, F>
 where
-    G: Genome<Gene>,
+    Gnt: Genotype<T>,
+    T: Copy + Send + Sync + SampleUniformRange,
     F: Default + Copy,
 {
-    genotype: G,
+    genotype: Gnt,
     fitness: F,
-    _gene: PhantomData<Gene>,
+    _gene: PhantomData<T>,
 }
 
-impl<G, Gene, F> Individual<G, Gene, F>
+impl<Gnt, T, F> Individual<Gnt, T, F>
 where
-    G: Genome<Gene>,
+    Gnt: Genotype<T>,
+    T: Copy + Send + Sync + SampleUniformRange,
     F: Default + Copy,
 {
-    pub fn from_genotype(genotype: G) -> Self {
+    pub fn from_genotype(genotype: Gnt) -> Self {
         Individual {
             genotype,
             fitness: F::default(),
@@ -29,7 +28,25 @@ where
         }
     }
 
-    pub fn genotype(&self) -> &G {
+    pub fn sample_uniform<Gnm>(genome: &Gnm) -> Self
+    where
+        Gnm: Genome<T>,
+    {
+        let mut rng = rand::thread_rng();
+
+        let genotype = genome
+            .iter()
+            .map(|gene| T::sample_from_range(&mut rng, gene.range().clone()))
+            .collect();
+
+        Individual {
+            genotype,
+            fitness: F::default(),
+            _gene: PhantomData::default(),
+        }
+    }
+
+    pub fn genotype(&self) -> &Gnt {
         &self.genotype
     }
 
@@ -42,52 +59,16 @@ where
     }
 }
 
-impl<G, Gene, F> Clone for Individual<G, Gene, F>
+impl<Gnt, T, F> Clone for Individual<Gnt, T, F>
 where
-    G: Genome<Gene>,
+    Gnt: Genotype<T>,
+    T: Copy + Send + Sync + SampleUniformRange,
     F: Default + Copy,
 {
     fn clone(&self) -> Self {
         Self {
             genotype: self.genotype.clone(),
             fitness: self.fitness.clone(),
-            _gene: PhantomData::default(),
-        }
-    }
-}
-
-impl<G, Gene, F> Individual<G, Gene, F>
-where
-    G: Genome<Gene> + RandomInit,
-    F: Default + Copy,
-{
-    pub fn random<R>(rng: &mut R, len: usize) -> Self
-    where
-        R: Rng + ?Sized,
-    {
-        let genotype = G::random(rng, len);
-        Individual {
-            genotype,
-            fitness: F::default(),
-            _gene: PhantomData::default(),
-        }
-    }
-}
-
-impl<G, Gene, F> Individual<G, Gene, F>
-where
-    G: Genome<Gene>,
-    Gene: Clone + PartialOrd<Gene> + SampleUniform,
-    F: Default + Copy,
-{
-    pub fn random_with_range<R>(rng: &mut R, range: Range<Gene>, len: usize) -> Self
-    where
-        R: Rng + ?Sized,
-    {
-        let genotype = (0..len).map(|_| rng.gen_range(range.clone())).collect();
-        Individual {
-            genotype,
-            fitness: F::default(),
             _gene: PhantomData::default(),
         }
     }
