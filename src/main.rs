@@ -12,12 +12,8 @@ mod variation;
 use std::time::Instant;
 
 use crate::{
-    fitness::OptimizationGoal,
-    gene::{BoolDomain, DiscreteDomain, IntegralDomain},
-    genome::Genome,
-    selection::TruncationSelection,
-    simplega::SimpleGABuilder,
-    variation::UniformCrossover,
+    fitness::OptimizationGoal, gene::BoolDomain, genome::Genome, selection::TruncationSelection,
+    simplega::SimpleGABuilder, variation::UniformCrossover,
 };
 
 type GeneType = bool;
@@ -25,6 +21,7 @@ type Genotype = Vec<GeneType>;
 
 const GENOME_SIZE: usize = 8192;
 const POPULATION_SIZE: usize = 800;
+const EVAL_BUDGET: usize = 250000;
 const TARGET: usize = GENOME_SIZE;
 const GOAL: OptimizationGoal = OptimizationGoal::MAXIMIZE;
 
@@ -47,10 +44,7 @@ fn main() {
     let builder = SimpleGABuilder::new();
 
     let mut ga = builder
-        .genome(Genome::discrete_genome_with_domain(
-            &BoolDomain::default(),
-            GENOME_SIZE,
-        ))
+        .genome(Genome::discrete_genome_with_domain(&bdom!(), GENOME_SIZE))
         .random_population(POPULATION_SIZE)
         .evaluation_function(&one_max)
         .goal(GOAL)
@@ -61,7 +55,7 @@ fn main() {
 
     // Run EA
     let now = Instant::now();
-    let status = ga.run(250000);
+    let status = ga.run(EVAL_BUDGET);
     let elapsed = now.elapsed();
 
     println!(
