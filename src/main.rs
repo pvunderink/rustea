@@ -1,4 +1,7 @@
+#![feature(step_trait)]
+
 mod fitness;
+mod gene;
 mod genome;
 mod individual;
 mod selection;
@@ -10,7 +13,8 @@ use std::time::Instant;
 
 use crate::{
     fitness::OptimizationGoal,
-    genome::{Gene, GeneRange, Genome as _},
+    gene::{BoolDomain, DiscreteDomain, IntegralDomain},
+    genome::Genome,
     selection::TruncationSelection,
     simplega::SimpleGABuilder,
     variation::UniformCrossover,
@@ -18,11 +22,11 @@ use crate::{
 
 type GeneType = bool;
 type Genotype = Vec<GeneType>;
-type Genome = Vec<Gene<GeneType>>;
 
 const GENOME_SIZE: usize = 8192;
 const POPULATION_SIZE: usize = 800;
 const TARGET: usize = GENOME_SIZE;
+const GOAL: OptimizationGoal = OptimizationGoal::MAXIMIZE;
 
 fn one_max(genotype: &Genotype) -> usize {
     genotype.iter().filter(|bit| **bit).count() // count the number of ones in the bitstring
@@ -43,13 +47,13 @@ fn main() {
     let builder = SimpleGABuilder::new();
 
     let mut ga = builder
-        .genome(Genome::uniform_with_range(
+        .genome(Genome::discrete_genome_with_domain(
+            &BoolDomain::default(),
             GENOME_SIZE,
-            range!(false..=true),
         ))
         .random_population(POPULATION_SIZE)
         .evaluation_function(&one_max)
-        .goal(OptimizationGoal::MAXIMIZE)
+        .goal(GOAL)
         .selection(TruncationSelection)
         .variation(UniformCrossover::default())
         .target(TARGET) // defining a target fitness allows the GA to stop early

@@ -1,25 +1,18 @@
+use crate::gene::{Allele, BoolDomain, Discrete, DiscreteDomain, DiscreteGene, Gene};
+
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     marker::PhantomData,
-    ops::{Range, RangeInclusive},
-    time::Duration,
+    slice::Iter,
 };
 
 use ndarray::{Array, Ix1};
 use rand::Rng;
 
-pub trait Discrete: Send + Sync {}
-pub trait Real: Send + Sync {}
 pub trait Permutation: Send + Sync {}
 pub trait Cartesian<Gene>: Send + Sync {
     fn set(&mut self, index: usize, gene: Gene);
 }
-
-macro_rules! impl_trait {
-    ($tr:ty => for $($t:ty),+) => {
-        $(impl $tr for $t {})*
-    }
-  }
 
 macro_rules! impl_cartesian {
     (for $($t:ty;$g:ty),+) => {
@@ -43,190 +36,86 @@ macro_rules! impl_genotype {
             }
         })*
     }
-  }
-
-macro_rules! impl_genome {
-    (for $($t:ty;$g:ty),+) => {
-        $(
-            impl Genome<$g> for $t
-            {
-                fn get(&self, index: usize) -> &Gene<$g> {
-                    &self[index]
-                }
-
-                fn len(&self) -> usize {
-                    self.len()
-                }
-            }
-        )*
-    }
-  }
-
-#[derive(Clone, Debug)]
-pub enum GeneRange<T> {
-    Inclusive(RangeInclusive<T>),
-    Exclusive(Range<T>),
-}
-
-#[macro_export]
-macro_rules! range {
-    ($l:literal..$u:literal) => {
-        GeneRange::Exclusive($l..$u)
-    };
-    ($l:literal..=$u:literal) => {
-        GeneRange::Inclusive($l..=$u)
-    };
-}
-
-pub trait SampleUniformRange {
-    fn sample_from_range<R>(rng: &mut R, range: GeneRange<Self>) -> Self
-    where
-        Self: Sized,
-        R: Rng + ?Sized;
-}
-
-impl SampleUniformRange for bool {
-    fn sample_from_range<R>(rng: &mut R, range: GeneRange<Self>) -> Self
-    where
-        Self: Sized,
-        R: Rng + ?Sized,
-    {
-        match range {
-            GeneRange::Inclusive(range) => {
-                if !range.contains(&false) {
-                    return true;
-                } else if !range.contains(&true) {
-                    return false;
-                } else {
-                    return rng.gen();
-                }
-            }
-            GeneRange::Exclusive(range) => {
-                if !range.contains(&false) {
-                    return true;
-                } else if !range.contains(&true) {
-                    return false;
-                } else {
-                    return rng.gen();
-                }
-            }
-        }
-    }
-}
-
-macro_rules! impl_sample_uniform {
-    (for $($t:ty),+) => {
-        $(
-            impl SampleUniformRange for $t {
-                fn sample_from_range<R>(rng: &mut R, range: GeneRange<Self>) -> Self
-                where
-                    R: Rng + ?Sized,
-                {
-                    match range {
-                        GeneRange::Inclusive(range) => rng.gen_range(range),
-                        GeneRange::Exclusive(range) => rng.gen_range(range),
-                    }
-                }
-            }
-        )*
-    }
-}
-
-impl_sample_uniform!(for u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64, char, Duration);
-
-// The gene type represents the domain of values that a specific gene can take
-#[derive(Clone)]
-pub struct Gene<T>
-where
-    T: Copy + Send + Sync + SampleUniformRange,
-{
-    range: GeneRange<T>,
-    _gene: PhantomData<T>,
-}
-
-impl<T> Gene<T>
-where
-    T: Copy + Send + Sync + SampleUniformRange,
-{
-    pub fn with_range(range: GeneRange<T>) -> Self {
-        Gene {
-            range,
-            _gene: PhantomData::default(),
-        }
-    }
-
-    pub fn range(&self) -> GeneRange<T> {
-        self.range.clone()
-    }
 }
 
 // A genome represents the domain of all possible genotypes
 // Each gene in the genome has a range with possible values the genes could take
-pub trait Genome<T>:
-    FromIterator<Gene<T>> + IntoIterator<Item = Gene<T>> + Send + Sync + Clone
+#[derive(Debug, Clone)]
+pub struct Genome<A, G>
 where
-    T: Copy + Send + Sync + SampleUniformRange,
+    A: Allele,
+    G: Gene<A>,
 {
-    fn uniform_with_range(len: usize, range: GeneRange<T>) -> Self {
-        (0..len).map(|_| Gene::with_range(range.clone())).collect()
-    }
+    genes: Vec<G>,
+    _allele: PhantomData<A>,
+}
 
-    fn sample_uniform<Gnt, R>(&self, rng: &mut R) -> Gnt
+impl<A, G> Genome<A, G>
+where
+    A: Allele,
+    G: Gene<A>,
+{
+    pub fn sample_uniform<Gnt, R>(&self, rng: &mut R) -> Gnt
     where
         R: Rng + ?Sized,
-        Gnt: Genotype<T> + Sized,
+        Gnt: Genotype<A> + Sized,
     {
-        self.iter()
-            .map(|gene| T::sample_from_range(rng, gene.range.clone()))
-            .collect()
+        self.iter().map(|gene| gene.sample_uniform(rng)).collect()
     }
 
-    fn get(&self, index: usize) -> &Gene<T>;
+    fn get(&self, index: usize) -> &G {
+        &self.genes[index]
+    }
 
-    fn len(&self) -> usize;
+    fn len(&self) -> usize {
+        self.genes.len()
+    }
 
-    fn iter(&self) -> GenomeIter<Self, T>
-    where
-        Self: Sized,
-    {
-        GenomeIter {
-            genome: self,
-            index: 0,
-            _gene: PhantomData::default(),
+    fn iter(&self) -> Iter<'_, G> {
+        self.genes.iter()
+    }
+}
+
+impl<A, G> FromIterator<G> for Genome<A, G>
+where
+    A: Allele,
+    G: Gene<A>,
+{
+    fn from_iter<T: IntoIterator<Item = G>>(iter: T) -> Self {
+        Self {
+            genes: iter.into_iter().collect(),
+            _allele: PhantomData::default(),
         }
     }
 }
 
-pub struct GenomeIter<'a, G, T>
+impl<A, D> Genome<A, DiscreteGene<A, D>>
 where
-    G: Genome<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    A: Allele + Discrete,
+    D: DiscreteDomain<A>,
 {
-    genome: &'a G,
-    index: usize,
-    _gene: PhantomData<T>, // TODO: this can probably be done more cleanly; without PhantomData
-}
-
-impl<'a, G, T> Iterator for GenomeIter<'a, G, T>
-where
-    G: Genome<T>,
-    T: 'a + Copy + Send + Sync + SampleUniformRange,
-{
-    type Item = &'a Gene<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.index >= self.genome.len() {
-            None
-        } else {
-            Some(self.genome.get(self.index))
-        };
-        self.index += 1;
-
-        return result;
+    pub fn discrete_genome_with_domain(domain: &D, size: usize) -> Self {
+        Self {
+            genes: (0..size)
+                .map(|_| DiscreteGene::with_domain(domain))
+                .collect(),
+            _allele: PhantomData::default(),
+        }
     }
 }
 
-pub trait Genotype<T>: FromIterator<T> + Send + Sync + Clone
+impl Genome<bool, DiscreteGene<bool, BoolDomain>> {
+    pub fn bool_genome(size: usize) -> Self {
+        Self {
+            genes: (0..size)
+                .map(|_| DiscreteGene::with_domain(&BoolDomain::default()))
+                .collect(),
+            _allele: PhantomData::default(),
+        }
+    }
+}
+
+pub trait Genotype<T>: FromIterator<T> + Send + Sync + Clone + Debug
 where
     T: Copy + Send + Sync,
 {
@@ -275,7 +164,7 @@ where
     }
 }
 
-pub trait BitString: Genotype<bool> + Discrete + Cartesian<bool> {
+pub trait BitString: Genotype<bool> + Cartesian<bool> {
     fn zeros(len: usize) -> Self
     where
         Self: Sized;
@@ -301,7 +190,6 @@ pub struct U8BitString {
 //         let num_bytes = len / 8 + if len % 8 == 0 { 0 } else { 1 };
 //         let mut bytes = vec![0x00; num_bytes];
 //         rng.fill_bytes(&mut bytes);
-
 //         Self { bytes, len }
 //     }
 // }
@@ -435,19 +323,16 @@ impl BitString for Array<bool, Ix1> {
 }
 
 macro_rules! impl_cartesian_genotype_for_vec_types {
-    ($tr:ty => for $($g:ty),+) => {
+    (for $($g:ty),+) => {
         $(
-            impl_genome!(for Vec<Gene<$g>>; $g, Array<Gene<$g>, Ix1>; $g);
             impl_genotype!(for Vec<$g>; $g, Array<$g, Ix1>; $g);
             impl_cartesian!(for Vec<$g>; $g, Array<$g, Ix1>; $g);
-            impl_trait!($tr => for Vec<$g>, Array<$g, Ix1>);
+
         )*
     };
 }
 
-impl_cartesian_genotype_for_vec_types!(Discrete => for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize);
-impl_cartesian_genotype_for_vec_types!(Real => for f32, f64);
-impl_trait!(Discrete => for U8BitString);
+impl_cartesian_genotype_for_vec_types!(for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 
 #[cfg(test)]
 mod tests {

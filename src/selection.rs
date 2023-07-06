@@ -1,38 +1,38 @@
 use rand::seq::SliceRandom;
-use std::fmt::Debug;
 
 use crate::{
-    fitness::FitnessFunc,
-    genome::{Genotype, SampleUniformRange},
+    fitness::{Fitness, FitnessFunc},
+    gene::Allele,
+    genome::Genotype,
     individual::Individual,
 };
 
 pub trait SelectionOperator: Clone {
-    fn select<Gnt, T, F>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, T, F>>,
-        offspring: Vec<Individual<Gnt, T, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
-        Gnt: Genotype<T>,
-        T: Copy + Send + Sync + SampleUniformRange,
-        F: Default + Copy + PartialOrd + Debug;
+        Gnt: Genotype<A>,
+        A: Allele,
+        F: Fitness;
 }
 
 #[derive(Clone)]
 pub struct NoSelection;
 
 impl SelectionOperator for NoSelection {
-    fn select<Gnt, T, F>(
+    fn select<Gnt, A, F>(
         &mut self,
-        _: &mut Vec<Individual<Gnt, T, F>>,
-        _: Vec<Individual<Gnt, T, F>>,
-        _: &FitnessFunc<'_, Gnt, T, F>,
+        _: &mut Vec<Individual<Gnt, A, F>>,
+        _: Vec<Individual<Gnt, A, F>>,
+        _: &FitnessFunc<'_, Gnt, A, F>,
     ) where
-        Gnt: Genotype<T>,
-        T: Copy + Send + Sync + SampleUniformRange,
-        F: Default + Copy + PartialOrd + Debug,
+        Gnt: Genotype<A>,
+        A: Allele,
+        F: Fitness,
     {
     }
 }
@@ -41,16 +41,15 @@ impl SelectionOperator for NoSelection {
 pub struct TruncationSelection;
 
 impl SelectionOperator for TruncationSelection {
-    fn select<Gnt, T, F>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, T, F>>,
-        offspring: Vec<Individual<Gnt, T, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
-        Gnt: Genotype<T>,
-        T: Copy + Send + Sync + SampleUniformRange,
-
-        F: Default + Copy + PartialOrd + Debug,
+        Gnt: Genotype<A>,
+        A: Allele,
+        F: Fitness,
     {
         let population_size = population.len();
         population.extend(offspring.into_iter());
@@ -66,15 +65,15 @@ pub struct TournamentSelection {
 }
 
 impl SelectionOperator for TournamentSelection {
-    fn select<Gnt, T, F>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, T, F>>,
-        offspring: Vec<Individual<Gnt, T, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
-        Gnt: Genotype<T>,
-        T: Copy + Send + Sync + SampleUniformRange,
-        F: Default + Copy + PartialOrd + Debug,
+        Gnt: Genotype<A>,
+        A: Allele,
+        F: Fitness,
     {
         let population_size = population.len();
         let pool_size = offspring.len()

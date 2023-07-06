@@ -1,47 +1,48 @@
 use std::marker::PhantomData;
 
-use crate::genome::{Genome, Genotype, SampleUniformRange};
+use crate::{
+    fitness::Fitness,
+    gene::{Allele, Gene},
+    genome::{Genome, Genotype},
+};
 
 #[derive(Debug)]
-pub struct Individual<Gnt, T, F>
+pub struct Individual<Gnt, A, F>
 where
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
-    F: Default + Copy,
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
 {
     genotype: Gnt,
-    fitness: F,
-    _gene: PhantomData<T>,
+    fitness: Option<F>,
+    _gene: PhantomData<A>,
 }
 
-impl<Gnt, T, F> Individual<Gnt, T, F>
+impl<Gnt, A, F> Individual<Gnt, A, F>
 where
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
-    F: Default + Copy,
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
 {
     pub fn from_genotype(genotype: Gnt) -> Self {
         Individual {
             genotype,
-            fitness: F::default(),
+            fitness: None,
             _gene: PhantomData::default(),
         }
     }
 
-    pub fn sample_uniform<Gnm>(genome: &Gnm) -> Self
+    pub fn sample_uniform<G>(genome: &Genome<A, G>) -> Self
     where
-        Gnm: Genome<T>,
+        G: Gene<A>,
     {
         let mut rng = rand::thread_rng();
 
-        let genotype = genome
-            .iter()
-            .map(|gene| T::sample_from_range(&mut rng, gene.range().clone()))
-            .collect();
+        let genotype = genome.sample_uniform(&mut rng);
 
         Individual {
             genotype,
-            fitness: F::default(),
+            fitness: None,
             _gene: PhantomData::default(),
         }
     }
@@ -51,19 +52,22 @@ where
     }
 
     pub fn fitness(&self) -> F {
-        self.fitness
+        let Some(fitness) = self.fitness else {
+            panic!("The individual has not been evaluated yet");
+        };
+        fitness
     }
 
-    pub fn update_fitness(&mut self, fitness: F) {
-        self.fitness = fitness
+    pub fn set_fitness(&mut self, fitness: F) {
+        self.fitness = Some(fitness)
     }
 }
 
-impl<Gnt, T, F> Clone for Individual<Gnt, T, F>
+impl<Gnt, A, F> Clone for Individual<Gnt, A, F>
 where
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
-    F: Default + Copy,
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
 {
     fn clone(&self) -> Self {
         Self {

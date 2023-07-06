@@ -1,28 +1,28 @@
 use crate::{
-    fitness::FitnessFunc,
-    genome::{BitString, Cartesian, Discrete, Genotype, SampleUniformRange},
+    fitness::{Fitness, FitnessFunc},
+    gene::{Allele, Discrete},
+    genome::{Cartesian, Genotype},
     individual::Individual,
 };
 
 use derivative::Derivative;
-use ndarray::{Array, Ix1};
 use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
-use std::{fmt::Debug, marker::PhantomData};
+use std::marker::PhantomData;
 
-pub trait VariationOperator<Gnt, T>: Clone
+pub trait VariationOperator<Gnt, A>: Clone
 where
     Self: Sized,
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A>,
+    A: Allele,
 {
     fn create_offspring<F>(
         &self,
-        population: &Vec<Individual<Gnt, T, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
-    ) -> Vec<Individual<Gnt, T, F>>
+        population: &Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
-        F: Default + Copy + PartialOrd + Debug + Send + Sync;
+        F: Fitness;
 
     fn mutates(&self) -> bool;
 }
@@ -30,18 +30,18 @@ where
 #[derive(Clone)]
 pub struct NoVariation;
 
-impl<Gnt, T> VariationOperator<Gnt, T> for NoVariation
+impl<Gnt, A> VariationOperator<Gnt, A> for NoVariation
 where
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A>,
+    A: Allele,
 {
     fn create_offspring<F>(
         &self,
-        population: &Vec<Individual<Gnt, T, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, T, F>,
-    ) -> Vec<Individual<Gnt, T, F>>
+        population: &Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
-        F: Default + Copy + PartialOrd + Debug + Send + Sync,
+        F: Fitness,
     {
         let offspring = population
             .par_iter()
@@ -64,37 +64,37 @@ where
 
 #[derive(Derivative, Clone)]
 #[derivative(Default)]
-pub struct UniformCrossover<Gnt, T>
+pub struct UniformCrossover<Gnt, A>
 where
-    Gnt: Genotype<T> + Discrete + Cartesian<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A> + Cartesian<A>,
+    A: Allele + Discrete,
 {
     #[derivative(Default(value = "0.5"))]
     probability: f64,
     _genotype: PhantomData<Gnt>,
-    _gene: PhantomData<T>,
+    _allele: PhantomData<A>,
 }
 
-impl<Gnt, T> UniformCrossover<Gnt, T>
+impl<Gnt, A> UniformCrossover<Gnt, A>
 where
-    Gnt: Genotype<T> + Discrete + Cartesian<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A> + Cartesian<A>,
+    A: Allele + Discrete,
 {
     pub fn with_probability(probability: f64) -> Self {
         Self {
             probability,
             _genotype: PhantomData::default(),
-            _gene: PhantomData::default(),
+            _allele: PhantomData::default(),
         }
     }
 
     fn crossover<F>(
         &self,
-        parent_a: &Individual<Gnt, T, F>,
-        parent_b: &Individual<Gnt, T, F>,
-    ) -> Vec<Individual<Gnt, T, F>>
+        parent_a: &Individual<Gnt, A, F>,
+        parent_b: &Individual<Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
-        F: Default + Copy,
+        F: Fitness,
     {
         assert_eq!(
             parent_a.genotype().len(),
@@ -129,27 +129,27 @@ where
 }
 
 #[derive(Default, Clone)]
-pub struct OnePointCrossover<Gnt, T>
+pub struct OnePointCrossover<Gnt, A>
 where
-    Gnt: Genotype<T> + Discrete + Cartesian<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A> + Cartesian<A>,
+    A: Allele + Discrete,
 {
     _genotype: PhantomData<Gnt>,
-    _gene: PhantomData<T>,
+    _allele: PhantomData<A>,
 }
 
-impl<Gnt, T> OnePointCrossover<Gnt, T>
+impl<Gnt, A> OnePointCrossover<Gnt, A>
 where
-    Gnt: Genotype<T> + Discrete + Cartesian<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A> + Cartesian<A>,
+    A: Allele + Discrete,
 {
     fn crossover<F>(
         &self,
-        parent_a: &Individual<Gnt, T, F>,
-        parent_b: &Individual<Gnt, T, F>,
-    ) -> Vec<Individual<Gnt, T, F>>
+        parent_a: &Individual<Gnt, A, F>,
+        parent_b: &Individual<Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
-        F: Default + Copy,
+        F: Fitness,
     {
         assert_eq!(
             parent_a.genotype().len(),
@@ -181,27 +181,27 @@ where
 }
 
 #[derive(Default, Clone)]
-pub struct TwoPointCrossover<Gnt, T>
+pub struct TwoPointCrossover<Gnt, A>
 where
-    Gnt: Genotype<T> + Discrete + Cartesian<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A> + Cartesian<A>,
+    A: Allele + Discrete,
 {
     _genotype: PhantomData<Gnt>,
-    _gene: PhantomData<T>,
+    _gene: PhantomData<A>,
 }
 
-impl<Gnt, T> TwoPointCrossover<Gnt, T>
+impl<Gnt, A> TwoPointCrossover<Gnt, A>
 where
-    Gnt: Genotype<T> + Discrete + Cartesian<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
+    Gnt: Genotype<A> + Cartesian<A>,
+    A: Allele + Discrete,
 {
     fn crossover<F>(
         &self,
-        parent_a: &Individual<Gnt, T, F>,
-        parent_b: &Individual<Gnt, T, F>,
-    ) -> Vec<Individual<Gnt, T, F>>
+        parent_a: &Individual<Gnt, A, F>,
+        parent_b: &Individual<Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
-        F: Default + Copy,
+        F: Fitness,
     {
         assert_eq!(
             parent_a.genotype().len(),
@@ -238,19 +238,19 @@ where
 macro_rules! impl_two_parent_crossover {
     (for $($t:ty),+) => {
         $(
-            impl<Gnt, T> VariationOperator<Gnt, T> for $t
+            impl<Gnt, A> VariationOperator<Gnt, A> for $t
             where
-                Gnt: Genotype<T> + Discrete + Cartesian<T>,
-                T: Copy + Send + Sync + SampleUniformRange,
+                Gnt: Genotype<A> + Cartesian<A>,
+                A: Allele + Discrete,
             {
                 fn create_offspring<F>(
                     &self,
-                    population: &Vec<Individual<Gnt, T, F>>,
-                    fitness_func: &FitnessFunc<'_, Gnt, T, F>,
-                ) -> Vec<Individual<Gnt, T, F>>
+                    population: &Vec<Individual<Gnt, A, F>>,
+                    fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+                ) -> Vec<Individual<Gnt, A, F>>
                 where
                     Self: Sized,
-                    F: Default + Copy + PartialOrd +  Debug + Send + Sync,
+                    F: Fitness,
                 {
                     let mut rng = rand::thread_rng();
                     // Shuffle the population
@@ -289,93 +289,103 @@ macro_rules! impl_two_parent_crossover {
 
 impl_two_parent_crossover!(
     for
-        UniformCrossover<Gnt, T>,
-        OnePointCrossover<Gnt, T>,
-        TwoPointCrossover<Gnt, T>
+        UniformCrossover<Gnt, A>,
+        OnePointCrossover<Gnt, A>,
+        TwoPointCrossover<Gnt, A>
 );
 
-#[derive(Debug)]
-struct UnivariateModel {
-    probabilities: Array<f64, Ix1>,
-}
+// #[derive(Debug)]
+// struct UnivariateModel<'a, Gnm, Gnt, T>
+// where
+//     Gnm: Genome<T> + Discrete<T>,
+//     Gnt: Genotype<T> + Discrete<T>,
+//     T: Copy + Send + Sync + SampleUniformRange + Hash + Eq + PartialEq,
+// {
+//     counts: Vec<Vec<(T, f64)>>,
+//     genome: &'a Gnm,
+//     _genotype: PhantomData<Gnt>,
+// }
 
-impl UnivariateModel {
-    fn estimate_from_population<Gnt, F>(population: &Vec<Individual<Gnt, bool, F>>) -> Self
-    where
-        Gnt: BitString,
-        F: Default + Copy + Debug + Send + Sync,
-    {
-        assert!(population.len() > 0);
+// impl<'a, Gnm, Gnt, T> UnivariateModel<'a, Gnm, Gnt, T>
+// where
+//     Gnm: Genome<T> + Discrete<T>,
+//     Gnt: Genotype<T> + Discrete<T>,
+//     T: Copy + Send + Sync + SampleUniformRange + Hash + Eq + PartialEq,
+// {
+//     fn estimate_from_population<F>(genome: &Gnm, population: &Vec<Individual<Gnt, T, F>>) -> Self
+//     where
+//         F: Default + Copy + Debug + Send + Sync,
+//     {
+//         assert!(population.len() > 0);
 
-        let len = population.first().unwrap().genotype().len();
+//         let len = population.first().unwrap().genotype().len();
 
-        let counts = population
-            .into_par_iter()
-            .map(|idv| {
-                let gen: Array<_, _> = idv.genotype().iter().collect();
-                gen.map(|b| if *b { 1.0 } else { 0.0 })
-            })
-            .reduce(|| Array::zeros(len), |g1, g2| g1 + g2);
+//         genome.iter().map(|gene| gene.range().);
 
-        Self {
-            probabilities: counts / population.len() as f64,
-        }
-    }
+//         Self {
+//             probabilities: counts / population.len() as f64,
+//         }
+//     }
 
-    fn sample<Gnt, F, R>(&self, rng: &mut R) -> Individual<Gnt, bool, F>
-    where
-        Gnt: BitString,
-        F: Default + Copy + Debug + Send + Sync,
-        R: Rng,
-    {
-        let genotype = self
-            .probabilities
-            .iter()
-            .map(|p| rng.gen_bool(*p))
-            .collect();
+//     fn sample<F, R>(&self, rng: &mut R) -> Individual<Gnt, T, F>
+//     where
+//         F: Default + Copy + Debug + Send + Sync,
+//         R: Rng,
+//     {
+//         let genotype = self
+//             .probabilities
+//             .iter()
+//             .map(|p| rng.gen_bool(*p))
+//             .collect();
 
-        Individual::from_genotype(genotype)
-    }
-}
+//         Individual::from_genotype(genotype)
+//     }
+// }
 
-#[derive(Default, Clone)]
-pub struct UMDA<Gnt>
-where
-    Gnt: BitString,
-{
-    _genotype: PhantomData<Gnt>,
-}
+// #[derive(Default, Clone)]
+// pub struct UMDA<Gnm, Gnt, T>
+// where
+//     Gnm: Genome<T>,
+//     Gnt: Genotype<T>,
+//     T: Copy + Send + Sync + SampleUniformRange,
+// {
+//     genome: Gnm,
+//     _genotype: PhantomData<Gnt>,
+//     _gene: PhantomData<T>,
+// }
 
-impl<Gnt> VariationOperator<Gnt, bool> for UMDA<Gnt>
-where
-    Gnt: BitString,
-{
-    fn create_offspring<F>(
-        &self,
-        population: &Vec<Individual<Gnt, bool, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, bool, F>,
-    ) -> Vec<Individual<Gnt, bool, F>>
-    where
-        Self: Sized,
-        F: Default + Copy + PartialOrd + Debug + Send + Sync,
-    {
-        let model = UnivariateModel::estimate_from_population(population);
+// impl<Gnm, Gnt, T> VariationOperator<Gnt, T> for UMDA<Gnm, Gnt, T>
+// where
+//     Gnm: Genome<T>,
+//     Gnt: Genotype<T>,
+//     T: Copy + Send + Sync + SampleUniformRange,
+// {
+//     fn create_offspring<F>(
+//         &self,
+//         population: &Vec<Individual<Gnt, T, F>>,
+//         fitness_func: &FitnessFunc<'_, Gnt, T, F>,
+//     ) -> Vec<Individual<Gnt, T, F>>
+//     where
+//         Self: Sized,
+//         F: Default + Copy + PartialOrd + Debug + Send + Sync,
+//     {
+//         let model = UnivariateModel::estimate_from_population(population);
 
-        (0..population.len())
-            .into_par_iter()
-            .map(|_| {
-                let mut rng = rand::thread_rng();
+//         (0..population.len())
+//             .into_par_iter()
+//             .map(|_| {
+//                 let mut rng = rand::thread_rng();
 
-                let mut child = model.sample(&mut rng);
+//                 let mut child = model.sample(&mut rng);
 
-                fitness_func.evaluate(&mut child);
+//                 fitness_func.evaluate(&mut child);
 
-                child
-            })
-            .collect()
-    }
+//                 child
+//             })
+//             .collect()
+//     }
 
-    fn mutates(&self) -> bool {
-        false
-    }
-}
+//     fn mutates(&self) -> bool {
+//         false
+//     }
+// }

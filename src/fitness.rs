@@ -5,33 +5,43 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{
-    genome::{Genotype, SampleUniformRange},
-    individual::Individual,
-};
+use crate::{gene::Allele, genome::Genotype, individual::Individual};
 
 pub enum OptimizationGoal {
     MINIMIZE,
     MAXIMIZE,
 }
 
-pub struct FitnessFunc<'a, Gnt, T, F>
+pub trait Fitness: Default + Copy + Debug + Send + Sync + PartialOrd {}
+
+macro_rules! impl_fitness {
+    (for $($ty:ty),+) => {
+        $(
+            impl Fitness for $ty {}
+
+        )*
+    };
+}
+
+impl_fitness!(for u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
+
+pub struct FitnessFunc<'a, Gnt, A, F>
 where
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
-    F: Default + Copy + Debug,
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
 {
     counter: Arc<Mutex<usize>>,
     evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
     goal: OptimizationGoal,
-    _gene: PhantomData<T>,
+    _gene: PhantomData<A>,
 }
 
-impl<'a, Gnt, T, F> FitnessFunc<'a, Gnt, T, F>
+impl<'a, Gnt, A, F> FitnessFunc<'a, Gnt, A, F>
 where
-    Gnt: Genotype<T>,
-    T: Copy + Send + Sync + SampleUniformRange,
-    F: Default + Copy + Debug + PartialOrd,
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
 {
     pub fn new(
         evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
@@ -45,9 +55,9 @@ where
         }
     }
 
-    pub fn evaluate(&self, individual: &mut Individual<Gnt, T, F>) -> F {
+    pub fn evaluate(&self, individual: &mut Individual<Gnt, A, F>) -> F {
         let fitness = (self.evaluation_func)(individual.genotype());
-        individual.update_fitness(fitness);
+        individual.set_fitness(fitness);
 
         let mut counter = self.counter.lock().unwrap();
         *counter += 1;
