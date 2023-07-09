@@ -52,7 +52,7 @@ impl SelectionOperator for TruncationSelection {
         F: Fitness,
     {
         let population_size = population.len();
-        population.extend(offspring.into_iter());
+        population.extend(offspring);
         population.sort_by(|idv_a, idv_b| fitness_func.cmp(&idv_a.fitness(), &idv_b.fitness()));
         population.truncate(population_size);
     }

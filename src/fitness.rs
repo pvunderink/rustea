@@ -7,9 +7,10 @@ use std::{
 
 use crate::{gene::Allele, genome::Genotype, individual::Individual};
 
+#[derive(Debug, Clone)]
 pub enum OptimizationGoal {
-    MINIMIZE,
-    MAXIMIZE,
+    Minimize,
+    Maximize,
 }
 
 pub trait Fitness: Default + Copy + Debug + Send + Sync + PartialOrd {}
@@ -51,7 +52,7 @@ where
             counter: Arc::new(Mutex::new(0)),
             evaluation_func,
             goal,
-            _gene: PhantomData::default(),
+            _gene: PhantomData,
         }
     }
 
@@ -71,8 +72,8 @@ where
 
     pub fn cmp(&self, a: &F, b: &F) -> Ordering {
         match self.goal {
-            OptimizationGoal::MINIMIZE => a.partial_cmp(&b).unwrap(),
-            OptimizationGoal::MAXIMIZE => b.partial_cmp(&a).unwrap(),
+            OptimizationGoal::Minimize => a.partial_cmp(b).unwrap(),
+            OptimizationGoal::Maximize => b.partial_cmp(a).unwrap(),
         }
     }
 }

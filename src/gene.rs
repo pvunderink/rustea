@@ -2,13 +2,15 @@ use std::{
     collections::HashSet,
     hash::Hash,
     marker::PhantomData,
-    ops::{Range, RangeInclusive},
+    ops::{Add, Range, RangeInclusive},
 };
 
-use core::fmt::Debug;
+use core::{fmt::Debug, panic};
 
 use approx::AbsDiffEq;
+use num_traits::{One, Zero};
 use rand::{distributions::uniform::SampleUniform, Rng};
+use rand_distr::{Distribution, WeightedIndex};
 
 // TODO: Also implement a trait for uniform sampling
 pub trait Gene<A>: Send + Sync + Clone {
@@ -27,7 +29,7 @@ pub trait Integer: Discrete + PartialOrd + Ord + SampleUniform {}
 // Marker for real-valued genes and alleles
 pub trait Real: PartialOrd + AbsDiffEq + SampleUniform {}
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DiscreteGene<A, D>
 where
     A: Allele + Discrete,
@@ -58,8 +60,22 @@ where
     pub fn with_domain(domain: &D) -> Self {
         Self {
             domain: domain.clone(),
-            _allele: PhantomData::default(),
+            _allele: PhantomData,
         }
+    }
+
+    pub fn sample_with_weights<R, W>(&self, rng: &mut R, dist: &WeightedIndex<W>) -> A
+    where
+        R: Rng + ?Sized,
+        W: SampleUniform + PartialOrd + for<'a> ::core::ops::AddAssign<&'a W> + Clone + Default,
+    {
+        let idx = dist.sample(rng);
+
+        self.domain.get(idx)
+    }
+
+    pub fn domain(&self) -> &D {
+        &self.domain
     }
 }
 
@@ -99,6 +115,7 @@ where
     A: Allele + Discrete,
 {
     fn get(&self, idx: usize) -> A;
+    fn index_of(&self, allele: A) -> usize;
     fn len(&self) -> usize;
     fn iter(&self) -> DiscreteDomainIter<A, Self>
     where
@@ -107,7 +124,7 @@ where
         DiscreteDomainIter {
             domain: self,
             index: 0,
-            _allele: PhantomData::default(),
+            _allele: PhantomData,
         }
     }
     fn from_range(range: Range<A>) -> Self
@@ -145,17 +162,135 @@ where
     }
 }
 
-#[derive(Clone)]
-pub struct IntegralDomain<A>
+// #[derive(Clone)]
+// pub struct ContinuousIntegralDomain<A>
+// where
+//     A: Allele + Discrete + Ord + PartialOrd + Add + Zero,
+// {
+//     low: A,
+//     high: A,
+// }
+
+// impl<A> FromIterator<A> for ContinuousIntegralDomain<A>
+// where
+//     A: Allele + Discrete + Ord + PartialOrd + Add + Zero + One,
+// {
+//     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+//         let mut vec: Vec<_> = iter.into_iter().collect();
+//         vec.sort();
+
+//         let Some((Some(low), Some(high))) =
+//             vec.into_iter()
+//                 .fold(Some((None::<A>, None::<A>)), |bounds, elem| {
+//                     let (l, h) = bounds?;
+
+//                     let new_l = match l {
+//                         Some(l) => l,
+//                         None => elem,
+//                     };
+
+//                     let new_h = match h {
+//                         Some(h) => {
+//                             // TODO: Maybe not the best idea to use A::one() for this purpose
+//                             if elem == h + A::one() {
+//                                 h
+//                             } else {
+//                                 return None;
+//                             }
+//                         }
+//                         None => elem,
+//                     };
+
+//                     Some((Some(new_l), Some(new_h)))
+//                 })
+//         else {
+//             panic!("Provided iterator is not a continuous range of integers");
+//         };
+
+//         Self { low, high }
+//     }
+// }
+
+// impl DiscreteDomain<usize> for ContinuousIntegralDomain<usize> {
+//     fn get(&self, idx: usize) -> usize {
+//         let allele = self.low + idx as usize;
+
+//         assert!(allele <= self.high);
+
+//         allele
+//     }
+
+//     fn index_of(&self, allele: usize) -> usize {
+//         allele - self.low
+//     }
+
+//     fn len(&self) -> usize {
+//         (self.high - self.low) + 1
+//     }
+
+//     fn from_inclusive_range(range: RangeInclusive<usize>) -> Self
+//     where
+//         RangeInclusive<usize>: Iterator<Item = usize>,
+//     {
+//         Self {
+//             low: *range.start(),
+//             high: *range.end(),
+//         }
+//     }
+
+//     fn from_range(range: Range<usize>) -> Self
+//     where
+//         Range<usize>: Iterator<Item = usize>,
+//     {
+//         Self {
+//             low: range.start,
+//             high: range.end - 1,
+//         }
+//     }
+
+//     fn union(self, other: Self) -> Self
+//     where
+//         Self: Sized,
+//     {
+//         let mut set = HashSet::<usize>::default();
+
+//         set.extend(self.iter());
+//         set.extend(other.iter());
+
+//         let mut vec: Vec<_> = set.into_iter().collect();
+//         vec.sort();
+//         vec.into_iter().collect()
+//     }
+
+//     fn add(self, allele: usize) -> Self {
+//         if allele >= self.low && allele <= self.high {
+//             return self;
+//         } else if allele == self.low - 1 {
+//             return Self {
+//                 low: allele,
+//                 high: self.high,
+//             };
+//         } else if allele == self.high + 1 {
+//             return Self {
+//                 low: self.low,
+//                 high: allele,
+//             };
+//         }
+//         panic!("The new allele must be consecutive to the continuous domain")
+//     }
+// }
+
+#[derive(Debug, Clone)]
+pub struct DisjointIntegralDomain<A>
 where
-    A: Allele + Discrete + Ord + PartialOrd,
+    A: Allele + Discrete + Ord + PartialOrd + Add + Zero + One,
 {
     alleles: Vec<A>,
 }
 
-impl<A> FromIterator<A> for IntegralDomain<A>
+impl<A> FromIterator<A> for DisjointIntegralDomain<A>
 where
-    A: Allele + Discrete + Ord + PartialOrd,
+    A: Allele + Discrete + Ord + PartialOrd + Add + Zero + One,
 {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
         Self {
@@ -164,12 +299,16 @@ where
     }
 }
 
-impl<A> DiscreteDomain<A> for IntegralDomain<A>
+impl<A> DiscreteDomain<A> for DisjointIntegralDomain<A>
 where
-    A: Allele + Discrete + Ord + PartialOrd,
+    A: Allele + Discrete + Ord + PartialOrd + Add + Zero + One,
 {
     fn get(&self, idx: usize) -> A {
         self.alleles[idx]
+    }
+
+    fn index_of(&self, allele: A) -> usize {
+        self.alleles.binary_search(&allele).unwrap()
     }
 
     fn len(&self) -> usize {
@@ -204,9 +343,9 @@ where
     }
 }
 
-impl<A> IntegralDomain<A>
+impl<A> DisjointIntegralDomain<A>
 where
-    A: Allele + Discrete + Ord + PartialOrd,
+    A: Allele + Discrete + Ord + PartialOrd + Add + Zero + One,
 {
     pub fn empty() -> Self {
         Self {
@@ -215,28 +354,28 @@ where
     }
 }
 
-impl<A> Into<Vec<A>> for IntegralDomain<A>
+impl<A> From<DisjointIntegralDomain<A>> for Vec<A>
 where
-    A: Allele + Discrete + Ord + PartialOrd,
+    A: Allele + Discrete + Ord + PartialOrd + Add + Zero + One,
 {
-    fn into(self) -> Vec<A> {
-        self.alleles
+    fn from(val: DisjointIntegralDomain<A>) -> Self {
+        val.alleles
     }
 }
 
 #[macro_export]
 macro_rules! idom {
     (@($dom:expr); $l:literal..$h:literal, $($rest:tt)*) => {
-        idom!(@($dom.union(IntegralDomain::from_range($l..$h))); $($rest)*)
+        idom!(@($dom.union(DisjointIntegralDomain::from_range($l..$h))); $($rest)*)
     };
     (@($dom:expr); $l:literal..=$h:literal, $($rest:tt)*) => {
-        idom!(@($dom.union(IntegralDomain::from_inclusive_range($l..=$h))); $($rest)*)
+        idom!(@($dom.union(DisjointIntegralDomain::from_inclusive_range($l..=$h))); $($rest)*)
     };
     (@($dom:expr); $l:literal..$h:literal) => {
-        idom!(@($dom.union(IntegralDomain::from_range($l..$h))))
+        idom!(@($dom.union(DisjointIntegralDomain::from_range($l..$h))))
     };
     (@($dom:expr); $l:literal..=$h:literal) => {
-        idom!(@($dom.union(IntegralDomain::from_inclusive_range($l..=$h))))
+        idom!(@($dom.union(DisjointIntegralDomain::from_inclusive_range($l..=$h))))
     };
     (@($dom:expr); $l:literal, $($rest:tt)*) => {
         idom!(@($dom.add($l)); $($rest)*)
@@ -251,55 +390,50 @@ macro_rules! idom {
         $dom
     };
     ($($t:tt)*) => {
-        idom!(@(IntegralDomain::empty()); $($t)*)
+        idom!(@(DisjointIntegralDomain::empty()); $($t)*)
     };
 }
 
-#[derive(Clone)]
-pub struct BoolDomain {
-    values: Vec<bool>,
-}
+// #[macro_export]
+// macro_rules! cidom {
+//     ($l:literal..$h:literal) => {
+//         ContinuousIntegralDomain::from_range($l..$h)
+//     };
+//     ($l:literal..=$h:literal) => {
+//         ContinuousIntegralDomain::from_inclusive_range($l..=$h)
+//     };
+// }
+
+#[derive(Default, Clone)]
+pub struct BoolDomain;
 
 impl FromIterator<bool> for BoolDomain {
-    fn from_iter<T: IntoIterator<Item = bool>>(iter: T) -> Self {
-        let values: Vec<_> = iter
-            .into_iter()
-            .fold(HashSet::new(), |mut acc, b| {
-                acc.insert(b);
-                acc
-            })
-            .into_iter()
-            .collect();
-
-        Self { values }
+    fn from_iter<T: IntoIterator<Item = bool>>(_: T) -> Self {
+        panic!("Cannot create a BoolDomain from an iterator, use bdom!() to construct a BoolDomain")
     }
 }
 
 impl DiscreteDomain<bool> for BoolDomain {
     fn get(&self, idx: usize) -> bool {
-        self.values[idx]
+        match idx {
+            0 => false,
+            1 => true,
+            _ => panic!("Invalid index into BoolDomain"),
+        }
     }
 
     fn len(&self) -> usize {
-        self.values.len()
+        2
     }
 
-    fn add(self, allele: bool) -> Self {
-        if self.values.contains(&allele) {
-            let mut values = self.values.clone();
-            values.push(allele);
-
-            Self { values }
-        } else {
-            self
-        }
+    fn add(self, _: bool) -> Self {
+        self
     }
-}
 
-impl Default for BoolDomain {
-    fn default() -> Self {
-        Self {
-            values: vec![false, true],
+    fn index_of(&self, allele: bool) -> usize {
+        match allele {
+            true => 1,
+            false => 0,
         }
     }
 }
@@ -425,8 +559,8 @@ mod tests {
 
     #[test]
     fn test_integral_domain_union() {
-        let domain1 = IntegralDomain::from_inclusive_range(1..=3);
-        let domain2 = IntegralDomain::from_range(4..6);
+        let domain1 = DisjointIntegralDomain::from_inclusive_range(1..=3);
+        let domain2 = DisjointIntegralDomain::from_range(4..6);
 
         let vec: Vec<_> = domain1.union(domain2).into();
 
@@ -473,20 +607,6 @@ mod tests {
         let domain = bdom!();
 
         assert_eq!(domain.iter().collect::<Vec<_>>(), vec![false, true])
-    }
-
-    #[test]
-    fn test_boolean_domain_false() {
-        let domain: BoolDomain = [false].into_iter().collect();
-
-        assert_eq!(domain.get(0), false)
-    }
-
-    #[test]
-    fn test_boolean_domain_true() {
-        let domain: BoolDomain = [true].into_iter().collect();
-
-        assert_eq!(domain.get(0), true)
     }
 
     #[test]

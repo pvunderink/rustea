@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use rand::Rng;
+
 use crate::{
     fitness::Fitness,
     gene::{Allele, Gene},
@@ -28,22 +30,21 @@ where
         Individual {
             genotype,
             fitness: None,
-            _gene: PhantomData::default(),
+            _gene: PhantomData,
         }
     }
 
-    pub fn sample_uniform<G>(genome: &Genome<A, G>) -> Self
+    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<A, G>) -> Self
     where
+        R: Rng + ?Sized,
         G: Gene<A>,
     {
-        let mut rng = rand::thread_rng();
-
-        let genotype = genome.sample_uniform(&mut rng);
+        let genotype = genome.sample_uniform(rng);
 
         Individual {
             genotype,
             fitness: None,
-            _gene: PhantomData::default(),
+            _gene: PhantomData,
         }
     }
 
@@ -53,7 +54,7 @@ where
 
     pub fn fitness(&self) -> F {
         let Some(fitness) = self.fitness else {
-            panic!("The individual has not been evaluated yet");
+            panic!("Cannot retreive fitness: the individual has not been evaluated yet");
         };
         fitness
     }
@@ -72,8 +73,8 @@ where
     fn clone(&self) -> Self {
         Self {
             genotype: self.genotype.clone(),
-            fitness: self.fitness.clone(),
-            _gene: PhantomData::default(),
+            fitness: self.fitness,
+            _gene: PhantomData,
         }
     }
 }

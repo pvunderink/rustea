@@ -63,15 +63,15 @@ where
         self.iter().map(|gene| gene.sample_uniform(rng)).collect()
     }
 
-    fn get(&self, index: usize) -> &G {
+    pub fn get(&self, index: usize) -> &G {
         &self.genes[index]
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.genes.len()
     }
 
-    fn iter(&self) -> Iter<'_, G> {
+    pub fn iter(&self) -> Iter<'_, G> {
         self.genes.iter()
     }
 }
@@ -84,7 +84,7 @@ where
     fn from_iter<T: IntoIterator<Item = G>>(iter: T) -> Self {
         Self {
             genes: iter.into_iter().collect(),
-            _allele: PhantomData::default(),
+            _allele: PhantomData,
         }
     }
 }
@@ -99,7 +99,7 @@ where
             genes: (0..size)
                 .map(|_| DiscreteGene::with_domain(domain))
                 .collect(),
-            _allele: PhantomData::default(),
+            _allele: PhantomData,
         }
     }
 }
@@ -108,9 +108,9 @@ impl Genome<bool, DiscreteGene<bool, BoolDomain>> {
     pub fn bool_genome(size: usize) -> Self {
         Self {
             genes: (0..size)
-                .map(|_| DiscreteGene::with_domain(&BoolDomain::default()))
+                .map(|_| DiscreteGene::with_domain(&BoolDomain))
                 .collect(),
-            _allele: PhantomData::default(),
+            _allele: PhantomData,
         }
     }
 }
@@ -130,7 +130,7 @@ where
         GenotypeIter {
             genotype: self,
             index: 0,
-            _gene: PhantomData::default(),
+            _gene: PhantomData,
         }
     }
 }
@@ -160,7 +160,7 @@ where
         };
         self.index += 1;
 
-        return result;
+        result
     }
 }
 
@@ -224,11 +224,11 @@ impl Cartesian<bool> for U8BitString {
 
         let mut byte = self.bytes[byte_index];
         // reset the bit at bit_index to 0
-        byte = byte & !(0x1 << (7 - bit_index));
+        byte &= !(0x1 << (7 - bit_index));
 
         if bit {
             // set the bit at bit_index to 1
-            byte = byte | 0x1 << (7 - bit_index)
+            byte |= 0x1 << (7 - bit_index)
         }
 
         self.bytes[byte_index] = byte;
@@ -258,7 +258,7 @@ impl BitString for U8BitString {
         let mut byte = self.bytes[byte_index];
 
         // flip the bit at bit_index to 0
-        byte = byte ^ (0x1 << (7 - bit_index));
+        byte ^= 0x1 << (7 - bit_index);
 
         self.bytes[byte_index] = byte;
     }

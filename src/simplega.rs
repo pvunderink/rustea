@@ -53,23 +53,19 @@ where
 
     pub fn run(&mut self, evaluation_budget: usize) -> Status {
         // Perform initial evaluation
-        self.population.iter_mut().for_each(|mut idv| {
-            self.fitness_func.evaluate(&mut idv);
+        self.population.iter_mut().for_each(|idv| {
+            self.fitness_func.evaluate(idv);
         });
 
         while self.fitness_func.evaluations() < evaluation_budget {
             // Check if target fitness is reached
-            match self.target_fitness {
-                Some(target) => match self.best_individual() {
-                    Some(idv) => {
-                        // TODO: does not check for approximate equality; may not work for floating points
-                        if self.fitness_func.cmp(&idv.fitness(), &target).is_le() {
-                            return Status::TargetReached(self.fitness_func.evaluations());
-                        }
+            if let Some(target) = self.target_fitness {
+                if let Some(idv) = self.best_individual() {
+                    // TODO: does not check for approximate equality; may not work for floating points
+                    if self.fitness_func.cmp(&idv.fitness(), &target).is_le() {
+                        return Status::TargetReached(self.fitness_func.evaluations());
                     }
-                    None => (),
-                },
-                None => (),
+                }
             }
 
             // Perform variation
@@ -82,10 +78,11 @@ where
                 .select(&mut self.population, offspring, &self.fitness_func);
         }
 
-        return Status::BudgetReached(self.fitness_func.evaluations());
+        Status::BudgetReached(self.fitness_func.evaluations())
     }
 }
 
+#[derive(Clone)]
 pub struct SimpleGABuilder<'a, Gnt, A, G, F, S, V>
 where
     Gnt: Genotype<A>, // type of genotype
@@ -95,7 +92,7 @@ where
     S: SelectionOperator,
     V: VariationOperator<Gnt, A>,
 {
-    genome: Option<Genome<A, G>>,
+    genome: Option<&'a Genome<A, G>>,
     population: Option<Vec<Individual<Gnt, A, F>>>,
     evaluation_func: Option<&'a (dyn Fn(&Gnt) -> F + Send + Sync)>,
     goal: OptimizationGoal,
@@ -118,25 +115,27 @@ where
             genome: None,
             population: None,
             evaluation_func: None,
-            goal: OptimizationGoal::MINIMIZE,
+            goal: OptimizationGoal::Minimize,
             selection_operator: None,
             variation_operator: None,
             target_fitness: None,
         }
     }
 
-    pub fn genome(mut self, genome: Genome<A, G>) -> Self {
+    pub fn genome(mut self, genome: &'a Genome<A, G>) -> Self {
         self.genome = Some(genome);
         self
     }
 
     pub fn random_population(mut self, size: usize) -> Self {
-        let Some(genome) = self.genome.clone() else {
+        let Some(genome) = self.genome else {
             panic!("Failed to initialize population: the genome must be defined before the population can be initialized");
         };
 
+        let mut rng = rand::thread_rng();
+
         let population = (0..size)
-            .map(|_| Individual::sample_uniform(&genome))
+            .map(|_| Individual::sample_uniform(&mut rng, genome))
             .collect();
 
         self.population = Some(population);

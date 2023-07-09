@@ -1,0 +1,435 @@
+use crate::{
+    fitness::Fitness,
+    gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
+    genome::{Genome, Genotype},
+    individual::Individual,
+};
+use rand::Rng;
+use rand_distr::WeightedIndex;
+use std::{marker::PhantomData, ops::Index};
+
+#[derive(Debug)]
+pub struct UnivariateModel<'a, Gnt, A, D, F>
+where
+    Gnt: Genotype<A>,
+    A: Allele + Discrete,
+    D: DiscreteDomain<A>,
+    F: Fitness,
+{
+    distributions: Vec<WeightedIndex<usize>>,
+    genome: &'a Genome<A, DiscreteGene<A, D>>,
+    _genotype: PhantomData<Gnt>,
+    _fitness: PhantomData<F>,
+}
+
+impl<'a, Gnt, A, D, F> UnivariateModel<'a, Gnt, A, D, F>
+where
+    Gnt: Genotype<A>,
+    A: Allele + Discrete,
+    D: DiscreteDomain<A>,
+    F: Fitness,
+{
+    pub fn estimate_from_population(
+        genome: &'a Genome<A, DiscreteGene<A, D>>,
+        population: &[Individual<Gnt, A, F>],
+    ) -> Self {
+        assert!(!population.is_empty());
+
+        let mut counts: Vec<Vec<usize>> = genome
+            .iter()
+            .map(|gene| gene.domain().iter().map(|_| 0).collect())
+            .collect();
+
+        for idv in population {
+            for (idx, allele) in idv.genotype().iter().enumerate() {
+                let vec = &mut counts[idx];
+                let allele_idx = genome.get(idx).domain().index_of(allele);
+                vec[allele_idx] += 1
+            }
+        }
+
+        let distributions = counts
+            .into_iter()
+            .map(|counts| WeightedIndex::new(counts).unwrap())
+            .collect();
+
+        Self {
+            distributions,
+            genome,
+            _genotype: PhantomData,
+            _fitness: PhantomData,
+        }
+    }
+
+    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F>
+    where
+        R: Rng,
+    {
+        let genotype = self
+            .genome
+            .iter()
+            .enumerate()
+            .map(|(idx, gene)| gene.sample_with_weights(rng, &self.distributions[idx]))
+            .collect();
+
+        Individual::from_genotype(genotype)
+    }
+}
+
+#[derive(Debug)]
+pub struct Factorization {
+    factors: Vec<Vec<usize>>,
+}
+
+impl Index<usize> for Factorization {
+    type Output = Vec<usize>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.factors[index]
+    }
+}
+
+impl Factorization {
+    pub fn univariate(len: usize) -> Self {
+        Self {
+            factors: (0..len).map(|i| vec![i]).collect(),
+        }
+    }
+
+    pub fn join(&self, idx_a: usize, idx_b: usize) -> Self {
+        let mut joined = self.factors[idx_a].clone();
+        joined.extend(self.factors[idx_b].iter());
+
+        let mut factors: Vec<_> = self
+            .factors
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, vec)| {
+                if idx == idx_a || idx == idx_b {
+                    None
+                } else {
+                    Some(vec.clone())
+                }
+            })
+            .collect();
+
+        factors.push(joined);
+
+        Self { factors }
+    }
+
+    pub fn join_all(&self) -> impl Iterator<Item = Self> + '_ {
+        let n: usize = self.factors.len();
+        (0..n - 1)
+            .flat_map(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
+            .into_iter()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, Vec<usize>> {
+        self.factors.iter()
+    }
+
+    pub fn iter_genotype<'a, Gnt, A>(
+        &'a self,
+        genotype: &'a Gnt,
+    ) -> impl Iterator<Item = Vec<(usize, A)>> + '_
+    where
+        Gnt: Genotype<A>,
+        A: Allele + Discrete,
+    {
+        self.iter().map(|idxs| {
+            idxs.iter()
+                .zip(idxs.iter().map(|idx| genotype.get(idx)))
+                .collect()
+        })
+    }
+}
+
+impl PartialEq for Factorization {
+    fn eq(&self, other: &Self) -> bool {
+        self.factors == other.factors
+    }
+}
+
+impl FromIterator<Vec<usize>> for Factorization {
+    fn from_iter<T: IntoIterator<Item = Vec<usize>>>(iter: T) -> Self {
+        Self {
+            factors: iter.into_iter().collect(),
+        }
+    }
+}
+
+impl IntoIterator for Factorization {
+    type Item = Vec<usize>;
+
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.factors.into_iter()
+    }
+}
+
+#[derive(Debug)]
+struct MultivariateModel<'a, Gnt, A, D, F>
+where
+    Gnt: Genotype<A>,
+    A: Allele + Discrete,
+    D: DiscreteDomain<A>,
+    F: Fitness,
+{
+    factorization: Factorization,
+    distributions: Vec<WeightedIndex<usize>>,
+    genome: &'a Genome<A, DiscreteGene<A, D>>,
+    _genotype: PhantomData<Gnt>,
+    _fitness: PhantomData<F>,
+}
+
+impl<'a, Gnt, A, D, F> MultivariateModel<'a, Gnt, A, D, F>
+where
+    Gnt: Genotype<A>,
+    A: Allele + Discrete,
+    D: DiscreteDomain<A>,
+    F: Fitness,
+{
+    pub fn estimate_from_population(
+        genome: &'a Genome<A, DiscreteGene<A, D>>,
+        population: &[Individual<Gnt, A, F>],
+        factorization: Factorization,
+    ) -> Self {
+        assert!(!population.is_empty());
+
+        let mut counts: Vec<Vec<usize>> = factorization
+            .iter()
+            .map(|idxs| {
+                let n = idxs
+                    .iter()
+                    .fold(1, |acc, idx| acc * genome.get(idx).domain().len());
+                vec![0; n]
+            })
+            .collect();
+
+        for idv in population {
+            for (factor_idx, alleles) in factorization.iter_genotype(idv.genotype()).enumerate() {
+                let n = alleles.len();
+                let idx: usize = alleles
+                    .into_iter()
+                    .enumerate()
+                    .fold(vec![1usize; n], |acc, (i, (idx, allele))| {
+                        let domain = genome.get(idx).domain();
+                        let l = domain.len();
+                        let mut new_acc = acc.clone();
+
+                        (0..i).for_each(|j| new_acc[j] *= l);
+                        new_acc[i] *= domain.index_of(allele);
+
+                        new_acc
+                    })
+                    .iter()
+                    .sum();
+
+                let vec = &mut counts[factor_idx];
+                vec[idx] += 1
+            }
+        }
+
+        let distributions = counts
+            .into_iter()
+            .map(|counts| WeightedIndex::new(counts).unwrap())
+            .collect();
+
+        Self {
+            factorization,
+            distributions,
+            genome,
+            _genotype: PhantomData,
+            _fitness: PhantomData,
+        }
+    }
+
+    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F>
+    where
+        R: Rng,
+    {
+        let mut alleles: Vec<_> = self
+            .factorization
+            .iter()
+            .enumerate()
+            .flat_map(|(factor_idx, factor)| {
+                let mut raw_idx = rng.sample(&self.distributions[factor_idx]);
+
+                // Extract allele indices from raw_idx
+                let n = factor.len();
+                let mut allele_idxs = vec![0usize; n];
+
+                let divisors =
+                    factor
+                        .iter()
+                        .enumerate()
+                        .fold(vec![1usize; n], |acc, (i, gene_idx)| {
+                            let domain = self.genome.get(gene_idx).domain();
+                            let l = domain.len();
+                            let mut new_acc = acc.clone();
+
+                            (0..i).for_each(|j| new_acc[j] *= l);
+                            new_acc
+                        });
+
+                for i in 0..n {
+                    let idx = raw_idx / divisors[i];
+                    raw_idx = raw_idx % divisors[i];
+                    allele_idxs[i] = idx;
+                }
+
+                factor
+                    .iter()
+                    .zip(allele_idxs.into_iter())
+                    .map(|(gene_idx, allele_idx)| {
+                        (gene_idx, self.genome.get(gene_idx).domain().get(allele_idx))
+                    })
+            })
+            .collect();
+
+        alleles.sort_by(|(idx_a, _), (idx_b, _)| idx_a.cmp(idx_b));
+
+        let genotype = alleles.into_iter().map(|(_, allele)| allele).collect();
+
+        Individual::from_genotype(genotype)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use approx::assert_abs_diff_eq;
+
+    use crate::{bdom, BoolDomain};
+
+    use super::*;
+
+    #[test]
+    fn join_univariate_factors_large() {
+        const N: usize = 100;
+
+        let factorization = Factorization::univariate(N);
+
+        let iter = factorization.join_all();
+
+        let factorizations: Vec<_> = iter.collect();
+
+        assert_eq!(factorizations.len(), (N * (N - 1)) / 2)
+    }
+
+    #[test]
+    fn join_univariate_factors_len_4() {
+        const N: usize = 4;
+
+        let factorization = Factorization::univariate(N);
+
+        let iter = factorization.join_all();
+
+        let factorizations: Vec<_> = iter.collect();
+
+        assert_eq!(
+            factorizations[0],
+            vec![vec![2], vec![3], vec![0, 1]].into_iter().collect()
+        );
+
+        assert_eq!(
+            factorizations[1],
+            vec![vec![1], vec![3], vec![0, 2]].into_iter().collect()
+        );
+
+        assert_eq!(
+            factorizations[2],
+            vec![vec![1], vec![2], vec![0, 3]].into_iter().collect()
+        );
+
+        assert_eq!(
+            factorizations[3],
+            vec![vec![0], vec![3], vec![1, 2]].into_iter().collect()
+        );
+
+        assert_eq!(
+            factorizations[4],
+            vec![vec![0], vec![2], vec![1, 3]].into_iter().collect()
+        );
+
+        assert_eq!(
+            factorizations[5],
+            vec![vec![0], vec![1], vec![2, 3]].into_iter().collect()
+        );
+
+        assert_eq!(factorizations.len(), (N * (N - 1)) / 2)
+    }
+
+    #[test]
+    fn multivariate_model_with_one_joined_factor() {
+        type Gnt = Vec<bool>;
+        type Ftnss = f64;
+        const N: usize = 10;
+
+        let genome = Genome::discrete_genome_with_domain(&bdom!(), N);
+
+        // Create factorization: [(0,1), 2, 3, 4, 5, 6, 7, 8, 9]
+        let factorization = Factorization::univariate(N).join_all().next().unwrap();
+
+        let mut rng = rand::thread_rng();
+
+        // Create random population
+        let population: Vec<_> = (0..100000)
+            .map(|_| {
+                let mut genotype: Gnt = genome.sample_uniform(&mut rng);
+                if rng.gen::<f64>() < 0.25 {
+                    genotype[0] = false;
+                    genotype[1] = true;
+                } else {
+                    genotype[0] = true;
+                    genotype[1] = false;
+                }
+
+                Individual::<_, _, Ftnss>::from_genotype(genotype)
+            })
+            .collect();
+
+        let model =
+            MultivariateModel::estimate_from_population(&genome, &population, factorization);
+
+        let mut counts = vec![0usize; N - 2];
+
+        let mut count_00 = 0usize;
+        let mut count_01 = 0usize;
+        let mut count_10 = 0usize;
+        let mut count_11 = 0usize;
+
+        const SAMPLE_SIZE: usize = 100000;
+        let samples: Vec<_> = (0..SAMPLE_SIZE).map(|_| model.sample(&mut rng)).collect();
+
+        for sample in samples {
+            let first_factor: Vec<_> = sample.genotype().iter().take(2).collect();
+
+            if first_factor == vec![false, false] {
+                count_00 += 1;
+            } else if first_factor == vec![false, true] {
+                count_01 += 1;
+            } else if first_factor == vec![true, false] {
+                count_10 += 1;
+            } else if first_factor == vec![true, true] {
+                count_11 += 1;
+            }
+
+            for (i, b) in sample.genotype().iter().skip(2).enumerate() {
+                if b {
+                    counts[i] += 1;
+                }
+            }
+        }
+
+        assert_eq!(count_00, 0);
+        assert_eq!(count_11, 0);
+        assert_abs_diff_eq!(count_01 as f64 / SAMPLE_SIZE as f64, 0.25, epsilon = 0.01);
+        assert_abs_diff_eq!(count_10 as f64 / SAMPLE_SIZE as f64, 0.75, epsilon = 0.01);
+
+        for count in counts {
+            assert_abs_diff_eq!(count as f64 / SAMPLE_SIZE as f64, 0.5, epsilon = 0.01);
+        }
+    }
+}
