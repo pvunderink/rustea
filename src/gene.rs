@@ -19,7 +19,7 @@ pub trait Gene<A>: Send + Sync + Clone {
         R: Rng + ?Sized;
 }
 
-pub trait Allele: Send + Sync + Copy + Debug {}
+pub trait Allele: Send + Sync + Copy + Debug + Default {}
 
 // Marker for discrete-valued genes and alleles
 pub trait Discrete: Eq + PartialEq + Hash {}

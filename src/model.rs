@@ -4,6 +4,7 @@ use crate::{
     genome::{Genome, Genotype},
     individual::Individual,
 };
+use approx::abs_diff_ne;
 use rand::Rng;
 use rand_distr::WeightedIndex;
 use std::{marker::PhantomData, ops::Index};
@@ -178,8 +179,9 @@ where
     F: Fitness,
 {
     factorization: Factorization,
-    distributions: Vec<WeightedIndex<usize>>,
+    probabilities: Vec<Vec<f64>>,
     genome: &'a Genome<A, DiscreteGene<A, D>>,
+    sample_size: usize,
     _genotype: PhantomData<Gnt>,
     _fitness: PhantomData<F>,
 }
@@ -232,15 +234,21 @@ where
             }
         }
 
-        let distributions = counts
+        let probabilities = counts
             .into_iter()
-            .map(|counts| WeightedIndex::new(counts).unwrap())
+            .map(|counts| {
+                counts
+                    .iter()
+                    .map(|count| count as f64 / population.len() as f64)
+                    .collect()
+            })
             .collect();
 
         Self {
             factorization,
-            distributions,
+            probabilities,
             genome,
+            sample_size: population.len(),
             _genotype: PhantomData,
             _fitness: PhantomData,
         }
@@ -250,12 +258,14 @@ where
     where
         R: Rng,
     {
-        let mut alleles: Vec<_> = self
-            .factorization
+        let mut alleles: Vec<A> = vec![A::default(); self.genome.len()];
+
+        self.factorization
             .iter()
             .enumerate()
-            .flat_map(|(factor_idx, factor)| {
-                let mut raw_idx = rng.sample(&self.distributions[factor_idx]);
+            .for_each(|(factor_idx, factor)| {
+                let distr = WeightedIndex::new(&self.probabilities[factor_idx]).unwrap();
+                let mut raw_idx = rng.sample(distr);
 
                 // Extract allele indices from raw_idx
                 let n = factor.len();
@@ -283,17 +293,27 @@ where
                 factor
                     .iter()
                     .zip(allele_idxs.into_iter())
-                    .map(|(gene_idx, allele_idx)| {
-                        (gene_idx, self.genome.get(gene_idx).domain().get(allele_idx))
+                    .for_each(|(gene_idx, allele_idx)| {
+                        alleles[gene_idx] = self.genome.get(gene_idx).domain().get(allele_idx);
                     })
+            });
+
+        Individual::from_genotype(alleles.into_iter().collect())
+    }
+
+    pub fn compressed_population_complexity(&self) -> f64 {
+        let entropy_sum: f64 = self
+            .probabilities
+            .iter()
+            .map(|probs| {
+                probs
+                    .iter()
+                    .filter(|p| abs_diff_ne!(*p, 0.0, epsilon = 1e-5))
+                    .map(|p| -p * p.log2())
+                    .sum::<f64>()
             })
-            .collect();
-
-        alleles.sort_by(|(idx_a, _), (idx_b, _)| idx_a.cmp(idx_b));
-
-        let genotype = alleles.into_iter().map(|(_, allele)| allele).collect();
-
-        Individual::from_genotype(genotype)
+            .sum();
+        self.sample_size as f64 * entropy_sum
     }
 }
 
@@ -370,7 +390,7 @@ mod tests {
         let genome = Genome::discrete_genome_with_domain(&bdom!(), N);
 
         // Create factorization: [(0,1), 2, 3, 4, 5, 6, 7, 8, 9]
-        let factorization = Factorization::univariate(N).join_all().next().unwrap();
+        let factorization = Factorization::univariate(N).join(0, 1);
 
         let mut rng = rand::thread_rng();
 
@@ -431,5 +451,49 @@ mod tests {
         for count in counts {
             assert_abs_diff_eq!(count as f64 / SAMPLE_SIZE as f64, 0.5, epsilon = 0.01);
         }
+    }
+
+    #[test]
+    fn compressed_population_complexity() {
+        type Ftnss = f64;
+        const N: usize = 4;
+
+        let genome = Genome::discrete_genome_with_domain(&bdom!(), N);
+
+        // Create random population
+        let population: Vec<_> = vec![
+            Individual::<_, _, Ftnss>::from_genotype(vec![true, false, false, false]),
+            Individual::from_genotype(vec![true, true, false, true]),
+            Individual::from_genotype(vec![false, true, true, true]),
+            Individual::from_genotype(vec![true, true, false, false]),
+            Individual::from_genotype(vec![false, false, true, false]),
+            Individual::from_genotype(vec![false, true, true, true]),
+            Individual::from_genotype(vec![true, false, false, false]),
+            Individual::from_genotype(vec![true, false, false, true]),
+        ];
+
+        let univariate_model = MultivariateModel::estimate_from_population(
+            &genome,
+            &population,
+            Factorization::univariate(N),
+        );
+
+        let joined_model = MultivariateModel::estimate_from_population(
+            &genome,
+            &population,
+            Factorization::univariate(N).join(0, 2),
+        );
+
+        assert_abs_diff_eq!(
+            univariate_model.compressed_population_complexity(),
+            31.3,
+            epsilon = 0.1
+        );
+
+        assert_abs_diff_eq!(
+            joined_model.compressed_population_complexity(),
+            23.6,
+            epsilon = 0.1
+        );
     }
 }
