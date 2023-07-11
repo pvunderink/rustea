@@ -13,27 +13,27 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Ecga<'a, Gnt, A, D, F, const LEN: usize>
+pub struct Ecga<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
     Gnt: Genotype<A>,
 {
-    genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
+    genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
     p_best: f64,
     _genotype: PhantomData<Gnt>,
     _fitness: PhantomData<F>,
 }
 
-impl<'a, Gnt, A, D, F, const LEN: usize> Ecga<'a, Gnt, A, D, F, LEN>
+impl<'a, Gnt, A, D, F> Ecga<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
     Gnt: Genotype<A>,
 {
-    pub fn with_genome(genome: &'a Genome<A, DiscreteGene<A, D>, LEN>, p_best: f64) -> Self {
+    pub fn with_genome(genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>, p_best: f64) -> Self {
         Self {
             genome,
             p_best,
@@ -45,8 +45,8 @@ where
     fn select_model(
         &self,
         initial_factorization: Factorization,
-        population: &[&Individual<Gnt, A, F, LEN>],
-    ) -> MultivariateModel<'_, Gnt, A, D, F, LEN>
+        population: &[&Individual<Gnt, A, F>],
+    ) -> MultivariateModel<'_, Gnt, A, D, F>
     where
         Self: Sized,
     {
@@ -57,7 +57,7 @@ where
         );
 
         loop {
-            let candidates = model.factorization().join_all();
+            let candidates = model.factorization().par_join_all();
 
             let Some(best_model) = candidates
                 .map(|fact| {
@@ -84,9 +84,9 @@ where
 
     fn select_individuals<'b>(
         &self,
-        population: &'b [Individual<Gnt, A, F, LEN>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
-    ) -> Vec<&'b Individual<Gnt, A, F, LEN>> {
+        population: &'b [Individual<Gnt, A, F>],
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<&'b Individual<Gnt, A, F>> {
         let mut selection: Vec<_> = population.iter().collect();
         selection.sort_unstable_by(|a, b| fitness_func.cmp(&a.fitness(), &b.fitness()));
         selection
@@ -96,8 +96,7 @@ where
     }
 }
 
-impl<'a, Gnt, A, D, F, const LEN: usize> VariationOperator<Gnt, A, F, LEN>
-    for Ecga<'a, Gnt, A, D, F, LEN>
+impl<'a, Gnt, A, D, F> VariationOperator<Gnt, A, F> for Ecga<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
@@ -106,9 +105,9 @@ where
 {
     fn create_offspring(
         &self,
-        population: &[Individual<Gnt, A, F, LEN>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>>
+        population: &[Individual<Gnt, A, F>],
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
         Self: Sized,
     {

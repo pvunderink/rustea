@@ -12,7 +12,7 @@ use rand::{seq::SliceRandom, Rng};
 use rayon::prelude::*;
 use std::marker::PhantomData;
 
-pub trait VariationOperator<Gnt, A, F, const LEN: usize>: Clone
+pub trait VariationOperator<Gnt, A, F>: Clone
 where
     Self: Sized,
     A: Allele,
@@ -21,9 +21,9 @@ where
 {
     fn create_offspring(
         &self,
-        population: &[Individual<Gnt, A, F, LEN>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>>;
+        population: &[Individual<Gnt, A, F>],
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>;
 
     fn mutates(&self) -> bool;
 }
@@ -31,7 +31,7 @@ where
 #[derive(Clone)]
 pub struct NoVariation;
 
-impl<Gnt, A, F, const LEN: usize> VariationOperator<Gnt, A, F, LEN> for NoVariation
+impl<Gnt, A, F> VariationOperator<Gnt, A, F> for NoVariation
 where
     A: Allele,
     F: Fitness,
@@ -39,9 +39,9 @@ where
 {
     fn create_offspring(
         &self,
-        population: &[Individual<Gnt, A, F, LEN>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>> {
+        population: &[Individual<Gnt, A, F>],
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>> {
         let offspring = population
             .par_iter()
             .map(|idv| {
@@ -63,7 +63,7 @@ where
 
 #[derive(Derivative, Clone)]
 #[derivative(Default)]
-pub struct UniformCrossover<Gnt, A, const LEN: usize>
+pub struct UniformCrossover<Gnt, A>
 where
     A: Allele + Discrete,
     Gnt: Genotype<A> + Cartesian<A>,
@@ -74,7 +74,7 @@ where
     _genotype: PhantomData<Gnt>,
 }
 
-impl<Gnt, A, const LEN: usize> UniformCrossover<Gnt, A, LEN>
+impl<Gnt, A> UniformCrossover<Gnt, A>
 where
     A: Allele + Discrete,
     Gnt: Genotype<A> + Cartesian<A>,
@@ -89,9 +89,9 @@ where
 
     fn crossover<F>(
         &self,
-        parent_a: &Individual<Gnt, A, F, LEN>,
-        parent_b: &Individual<Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>>
+        parent_a: &Individual<Gnt, A, F>,
+        parent_b: &Individual<Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
         F: Fitness,
     {
@@ -128,7 +128,7 @@ where
 }
 
 #[derive(Default, Clone)]
-pub struct OnePointCrossover<Gnt, A, const LEN: usize>
+pub struct OnePointCrossover<Gnt, A>
 where
     A: Allele + Discrete,
     Gnt: Genotype<A>,
@@ -137,16 +137,16 @@ where
     _genotype: PhantomData<Gnt>,
 }
 
-impl<Gnt, A, const LEN: usize> OnePointCrossover<Gnt, A, LEN>
+impl<Gnt, A> OnePointCrossover<Gnt, A>
 where
     A: Allele + Discrete,
     Gnt: Genotype<A> + Cartesian<A>,
 {
     fn crossover<F>(
         &self,
-        parent_a: &Individual<Gnt, A, F, LEN>,
-        parent_b: &Individual<Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>>
+        parent_a: &Individual<Gnt, A, F>,
+        parent_b: &Individual<Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
         F: Fitness,
     {
@@ -180,7 +180,7 @@ where
 }
 
 #[derive(Default, Clone)]
-pub struct TwoPointCrossover<Gnt, A, const LEN: usize>
+pub struct TwoPointCrossover<Gnt, A>
 where
     A: Allele + Discrete,
     Gnt: Genotype<A>,
@@ -189,16 +189,16 @@ where
     _genotype: PhantomData<Gnt>,
 }
 
-impl<Gnt, A, const LEN: usize> TwoPointCrossover<Gnt, A, LEN>
+impl<Gnt, A> TwoPointCrossover<Gnt, A>
 where
     A: Allele + Discrete,
     Gnt: Genotype<A> + Cartesian<A>,
 {
     fn crossover<F>(
         &self,
-        parent_a: &Individual<Gnt, A, F, LEN>,
-        parent_b: &Individual<Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>>
+        parent_a: &Individual<Gnt, A, F>,
+        parent_b: &Individual<Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
         F: Fitness,
     {
@@ -237,7 +237,7 @@ where
 macro_rules! impl_two_parent_crossover {
     (for $($t:ty),+) => {
         $(
-            impl<Gnt, A, F, const LEN: usize> VariationOperator<Gnt, A, F, LEN> for $t
+            impl<Gnt, A, F> VariationOperator<Gnt, A, F> for $t
             where
                 A: Allele + Discrete,
                 F: Fitness,
@@ -245,9 +245,9 @@ macro_rules! impl_two_parent_crossover {
             {
                 fn create_offspring(
                     &self,
-                    population: &[Individual<Gnt, A, F, LEN>],
-                    fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
-                ) -> Vec<Individual<Gnt, A, F, LEN>>
+                    population: &[Individual<Gnt, A, F>],
+                    fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+                ) -> Vec<Individual<Gnt, A, F>>
                 where
                     Self: Sized,
                     F: Fitness,
@@ -289,31 +289,33 @@ macro_rules! impl_two_parent_crossover {
 
 impl_two_parent_crossover!(
     for
-        UniformCrossover<Gnt, A, LEN>,
-        OnePointCrossover<Gnt, A, LEN>,
-        TwoPointCrossover<Gnt, A, LEN>
+        UniformCrossover<Gnt, A>,
+        OnePointCrossover<Gnt, A>,
+        TwoPointCrossover<Gnt, A>
 );
 
 #[derive(Debug, Clone)]
-pub struct Umda<'a, A, D, const LEN: usize>
+pub struct Umda<'a, Gnt, A, D>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
+    Gnt: Genotype<A>,
 {
-    genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
+    genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
 }
 
-impl<'a, A, D, const LEN: usize> Umda<'a, A, D, LEN>
+impl<'a, Gnt, A, D> Umda<'a, Gnt, A, D>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
+    Gnt: Genotype<A>,
 {
-    pub fn with_genome(genome: &'a Genome<A, DiscreteGene<A, D>, LEN>) -> Self {
+    pub fn with_genome(genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>) -> Self {
         Self { genome }
     }
 }
 
-impl<'a, Gnt, A, D, F, const LEN: usize> VariationOperator<Gnt, A, F, LEN> for Umda<'a, A, D, LEN>
+impl<'a, Gnt, A, D, F> VariationOperator<Gnt, A, F> for Umda<'a, Gnt, A, D>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
@@ -322,9 +324,9 @@ where
 {
     fn create_offspring(
         &self,
-        population: &[Individual<Gnt, A, F, LEN>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
-    ) -> Vec<Individual<Gnt, A, F, LEN>>
+        population: &[Individual<Gnt, A, F>],
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+    ) -> Vec<Individual<Gnt, A, F>>
     where
         Self: Sized,
     {

@@ -1,3 +1,5 @@
+use arrayvec::ArrayVec;
+
 pub trait FromIteratorUnsafe<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self;
 }
@@ -13,6 +15,15 @@ where
         }
 
         res
+    }
+}
+
+impl<T, const N: usize> FromIteratorUnsafe<T> for ArrayVec<T, N>
+where
+    T: Default + Copy,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        <ArrayVec<T, N> as FromIterator<T>>::from_iter(iter)
     }
 }
 

@@ -1,7 +1,4 @@
 #![feature(array_chunks)]
-#![feature(generic_const_exprs)]
-#![feature(associated_type_bounds)]
-#![allow(incomplete_features)]
 
 mod ecga;
 mod fitness;
@@ -21,7 +18,7 @@ use std::time::Instant;
 
 use fitness::Fitness;
 use gene::Gene;
-use genotype::Genotype;
+use genotype::{Genotype, SizedVec};
 use selection::SelectionOperator;
 use variation::VariationOperator;
 
@@ -35,19 +32,24 @@ use crate::{
     variation::{Umda, UniformCrossover},
 };
 
-const K: usize = 4;
+const K: usize = 5;
 const M: usize = 12;
 const GENOME_SIZE: usize = K * M;
+const POPULATION_SIZE: usize = 10000;
+const EVAL_BUDGET: usize = 80000;
 
-// const GENOME_SIZE: usize = 15;
-const POPULATION_SIZE: usize = 20000;
-const EVAL_BUDGET: usize = 100000;
+// const GENOME_SIZE: usize = 32;
+// const POPULATION_SIZE: usize = 800;
+// const EVAL_BUDGET: usize = 250000;
+
 const TARGET: usize = GENOME_SIZE;
 const GOAL: OptimizationGoal = OptimizationGoal::Maximize;
-const RUNS: usize = 1;
+const RUNS: usize = 10;
 
 type AlleleType = bool;
-type Gnt = [AlleleType; GENOME_SIZE];
+// type Gnt = ArrayVec<AlleleType, GENOME_SIZE>;
+// type Gnt = [AlleleType; GENOME_SIZE];
+type Gnt = SizedVec<AlleleType, GENOME_SIZE>;
 
 fn one_max(genotype: &Gnt) -> usize {
     genotype.iter().filter(|bit| *bit).count() // count the number of ones in the bitstring
@@ -72,15 +74,15 @@ fn deceptive_trap(genotype: &Gnt) -> usize {
         .sum()
 }
 
-fn measure_success_rate<G, F, S, V, const LEN: usize>(
-    builder: SimpleGABuilder<Gnt, AlleleType, G, F, S, V, LEN>,
+fn measure_success_rate<G, F, S, V>(
+    builder: SimpleGABuilder<Gnt, AlleleType, G, F, S, V>,
     n: usize,
 ) -> f64
 where
     G: Gene<AlleleType>,
     F: Fitness,
     S: SelectionOperator,
-    V: VariationOperator<Gnt, AlleleType, F, LEN>,
+    V: VariationOperator<Gnt, AlleleType, F>,
 {
     let mut success_count = 0usize;
     for i in 0..n {
@@ -106,7 +108,7 @@ where
 }
 
 fn main() {
-    let genome: Genome<_, _, GENOME_SIZE> = Genome::with_discrete_domain(&bdom!());
+    let genome = Genome::with_discrete_domain(&bdom!());
 
     let builder = SimpleGABuilder::new()
         .genome(&genome)

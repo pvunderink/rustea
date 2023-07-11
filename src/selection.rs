@@ -8,11 +8,11 @@ use crate::{
 };
 
 pub trait SelectionOperator: Clone {
-    fn select<Gnt, A, F, const LEN: usize>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, A, F, LEN>>,
-        offspring: Vec<Individual<Gnt, A, F, LEN>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -24,11 +24,11 @@ pub trait SelectionOperator: Clone {
 pub struct NoSelection;
 
 impl SelectionOperator for NoSelection {
-    fn select<Gnt, A, F, const LEN: usize>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, A, F, LEN>>,
-        offspring: Vec<Individual<Gnt, A, F, LEN>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -42,11 +42,11 @@ impl SelectionOperator for NoSelection {
 pub struct CopyOffspringSelection;
 
 impl SelectionOperator for CopyOffspringSelection {
-    fn select<Gnt, A, F, const LEN: usize>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, A, F, LEN>>,
-        offspring: Vec<Individual<Gnt, A, F, LEN>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -62,11 +62,11 @@ impl SelectionOperator for CopyOffspringSelection {
 pub struct TruncationSelection;
 
 impl SelectionOperator for TruncationSelection {
-    fn select<Gnt, A, F, const LEN: usize>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, A, F, LEN>>,
-        offspring: Vec<Individual<Gnt, A, F, LEN>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -87,11 +87,11 @@ pub struct TournamentSelection {
 }
 
 impl SelectionOperator for TournamentSelection {
-    fn select<Gnt, A, F, const LEN: usize>(
+    fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, A, F, LEN>>,
-        offspring: Vec<Individual<Gnt, A, F, LEN>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F, LEN>,
+        population: &mut Vec<Individual<Gnt, A, F>>,
+        offspring: Vec<Individual<Gnt, A, F>>,
+        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,

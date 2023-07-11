@@ -26,7 +26,7 @@ macro_rules! impl_fitness {
 
 impl_fitness!(for u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 
-pub struct FitnessFunc<'a, Gnt, A, F, const LEN: usize>
+pub struct FitnessFunc<'a, Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
@@ -38,7 +38,7 @@ where
     _gene: PhantomData<A>,
 }
 
-impl<'a, Gnt, A, F, const LEN: usize> FitnessFunc<'a, Gnt, A, F, LEN>
+impl<'a, Gnt, A, F> FitnessFunc<'a, Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
@@ -56,7 +56,7 @@ where
         }
     }
 
-    pub fn evaluate(&self, individual: &mut Individual<Gnt, A, F, LEN>) -> F {
+    pub fn evaluate(&self, individual: &mut Individual<Gnt, A, F>) -> F {
         let fitness = (self.evaluation_func)(individual.genotype());
         individual.set_fitness(fitness);
 

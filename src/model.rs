@@ -13,7 +13,7 @@ use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{marker::PhantomData, ops::Index};
 
 #[derive(Debug)]
-pub struct UnivariateModel<'a, Gnt, A, D, F, const LEN: usize>
+pub struct UnivariateModel<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
@@ -21,12 +21,12 @@ where
     Gnt: Genotype<A>,
 {
     distributions: Vec<WeightedIndex<usize>>,
-    genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
+    genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
     _genotype: PhantomData<Gnt>,
     _fitness: PhantomData<F>,
 }
 
-impl<'a, Gnt, A, D, F, const LEN: usize> UnivariateModel<'a, Gnt, A, D, F, LEN>
+impl<'a, Gnt, A, D, F> UnivariateModel<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
@@ -34,8 +34,8 @@ where
     Gnt: Genotype<A>,
 {
     pub fn estimate_from_population(
-        genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
-        population: &[Individual<Gnt, A, F, LEN>],
+        genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
+        population: &[Individual<Gnt, A, F>],
     ) -> Self {
         assert!(!population.is_empty());
 
@@ -65,7 +65,7 @@ where
         }
     }
 
-    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F, LEN>
+    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F>
     where
         R: Rng,
     {
@@ -127,12 +127,12 @@ impl Factorization {
         (0..n - 1).flat_map(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
     }
 
-    // pub fn par_join_all(&self) -> impl ParallelIterator<Item = Self> + '_ {
-    //     let n: usize = self.factors.len();
-    //     (0..n - 1)
-    //         .into_par_iter()
-    //         .flat_map_iter(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
-    // }
+    pub fn par_join_all(&self) -> impl ParallelIterator<Item = Self> + '_ {
+        let n: usize = self.factors.len();
+        (0..n - 1)
+            .into_par_iter()
+            .flat_map_iter(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
+    }
 
     pub fn iter(&self) -> impl Iterator<Item = &Vec<usize>> + '_ {
         self.factors.iter().filter(|f| !f.is_empty())
@@ -150,65 +150,6 @@ impl Factorization {
             .map(|idxs| idxs.iter().map(|idx| (*idx, genotype.get(*idx))).collect())
     }
 }
-
-// struct JoinedFactorizationIterator<'a> {
-//     factorization: Vec<Vec<usize>>,
-//     current_idx_a: usize,
-//     current_idx_b: usize,
-//     old_a: Vec<usize>,
-//     old_b: Vec<usize>,
-//     _useless_ptr: &'a Factorization,
-// }
-
-// impl<'a> Iterator for JoinedFactorizationIterator<'a> {
-//     type Item = &'a Factorization;
-
-//     fn next(&'a mut self) -> Option<Self::Item> {
-//         // repair from previous
-//         if !(self.current_idx_a == 0 && self.current_idx_b == 0) {}
-
-//         // evaluate next
-//         self.current_idx_b += 1;
-
-//         if self.current_idx_b == self.factorization.factors.len() {}
-
-//         if self.current_idx_a == self.factorization.factors.len() {
-//             return None;
-//         }
-
-//         {
-//             // save copy of factor a
-//             let factor_a = &self.factorization.factors[self.current_idx_a];
-//             self.old_a.clear();
-//             self.old_a.extend(factor_a.iter());
-//         }
-
-//         {
-//             // save copy of factor b
-//             let factor_b = &self.factorization.factors[self.current_idx_b];
-//             self.old_b.clear();
-//             self.old_b.extend(factor_b.iter());
-//         }
-
-//         // append contents of factor b to factor a
-//         self.factorization.factors[self.current_idx_a]
-//             .append(&mut self.factorization.factors[self.current_idx_b]);
-
-//         // return current factorization
-//         Some(&self.factorization)
-//     }
-// }
-
-// impl ParallelIterator for JoinedFactorizationIterator {
-//     type Item;
-
-//     fn drive_unindexed<C>(self, consumer: C) -> C::Result
-//     where
-//         C: rayon::iter::plumbing::UnindexedConsumer<Self::Item>,
-//     {
-//         todo!()
-//     }
-// }
 
 impl PartialEq for Factorization {
     fn eq(&self, other: &Self) -> bool {
@@ -235,7 +176,7 @@ impl IntoIterator for Factorization {
 }
 
 #[derive(Debug)]
-pub struct MultivariateModel<'a, Gnt, A, D, F, const LEN: usize>
+pub struct MultivariateModel<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
@@ -244,13 +185,13 @@ where
 {
     factorization: Factorization,
     probabilities: Vec<Vec<f64>>,
-    genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
+    genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
     sample_size: usize,
     _fitness: PhantomData<F>,
     _genotype: PhantomData<Gnt>,
 }
 
-impl<'a, Gnt, A, D, F, const LEN: usize> MultivariateModel<'a, Gnt, A, D, F, LEN>
+impl<'a, Gnt, A, D, F> MultivariateModel<'a, Gnt, A, D, F>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
@@ -258,8 +199,8 @@ where
     Gnt: Genotype<A>,
 {
     pub fn estimate_from_population(
-        genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
-        population: &[&Individual<Gnt, A, F, LEN>],
+        genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
+        population: &[&Individual<Gnt, A, F>],
         factorization: Factorization,
     ) -> Self {
         assert!(!population.is_empty());
@@ -318,7 +259,7 @@ where
         }
     }
 
-    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F, LEN>
+    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F>
     where
         R: Rng,
     {
@@ -401,8 +342,6 @@ where
 #[cfg(test)]
 mod tests {
     use approx::assert_abs_diff_eq;
-
-    use crate::{bdom, BoolDomain};
 
     use super::*;
 
@@ -487,7 +426,7 @@ mod tests {
                     genotype[1] = false;
                 }
 
-                Individual::<_, _, Ftnss, N>::from_genotype(genotype)
+                Individual::<_, _, Ftnss>::from_genotype(genotype)
             })
             .collect();
 
@@ -546,7 +485,7 @@ mod tests {
 
         // Create random population
         let population: Vec<_> = vec![
-            Individual::<_, _, Ftnss, N>::from_genotype([true, false, false, false]),
+            Individual::<_, _, Ftnss>::from_genotype([true, false, false, false]),
             Individual::from_genotype([true, true, false, true]),
             Individual::from_genotype([false, true, true, true]),
             Individual::from_genotype([true, true, false, false]),
@@ -590,7 +529,7 @@ mod tests {
 
         // Create random population
         let population: Vec<_> = vec![
-            Individual::<_, _, Ftnss, N>::from_genotype([true, false, false, false]),
+            Individual::<_, _, Ftnss>::from_genotype([true, false, false, false]),
             Individual::from_genotype([true, true, false, true]),
             Individual::from_genotype([false, true, true, true]),
             Individual::from_genotype([true, true, false, false]),

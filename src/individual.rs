@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct Individual<Gnt, A, F, const LEN: usize>
+pub struct Individual<Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
@@ -21,7 +21,7 @@ where
     _gene: PhantomData<A>,
 }
 
-impl<Gnt, A, F, const LEN: usize> Individual<Gnt, A, F, LEN>
+impl<Gnt, A, F> Individual<Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
@@ -35,7 +35,7 @@ where
         }
     }
 
-    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<A, G, LEN>) -> Self
+    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<Gnt, A, G>) -> Self
     where
         R: Rng + ?Sized,
         G: Gene<A>,
@@ -65,7 +65,7 @@ where
     }
 }
 
-impl<Gnt, A, F, const LEN: usize> Clone for Individual<Gnt, A, F, LEN>
+impl<Gnt, A, F> Clone for Individual<Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
