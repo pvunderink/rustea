@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::{gene::Allele, genome::Genotype, individual::Individual};
+use crate::{gene::Allele, genotype::Genotype, individual::Individual};
 
 #[derive(Debug, Clone)]
 pub enum OptimizationGoal {
@@ -26,11 +26,11 @@ macro_rules! impl_fitness {
 
 impl_fitness!(for u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 
-pub struct FitnessFunc<'a, Gnt, A, F>
+pub struct FitnessFunc<'a, Gnt, A, F, const LEN: usize>
 where
-    Gnt: Genotype<A>,
     A: Allele,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     counter: Arc<Mutex<usize>>,
     evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
@@ -38,11 +38,11 @@ where
     _gene: PhantomData<A>,
 }
 
-impl<'a, Gnt, A, F> FitnessFunc<'a, Gnt, A, F>
+impl<'a, Gnt, A, F, const LEN: usize> FitnessFunc<'a, Gnt, A, F, LEN>
 where
-    Gnt: Genotype<A>,
     A: Allele,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     pub fn new(
         evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
@@ -56,7 +56,7 @@ where
         }
     }
 
-    pub fn evaluate(&self, individual: &mut Individual<Gnt, A, F>) -> F {
+    pub fn evaluate(&self, individual: &mut Individual<Gnt, A, F, LEN>) -> F {
         let fitness = (self.evaluation_func)(individual.genotype());
         individual.set_fitness(fitness);
 

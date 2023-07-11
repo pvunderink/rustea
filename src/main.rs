@@ -1,62 +1,86 @@
-#![feature(step_trait)]
+#![feature(array_chunks)]
+#![feature(generic_const_exprs)]
+#![feature(associated_type_bounds)]
+#![allow(incomplete_features)]
 
+mod ecga;
 mod fitness;
 mod gene;
 mod genome;
+mod genotype;
 mod individual;
 mod model;
 mod rng;
 mod selection;
 mod simplega;
 mod statistics;
+mod types;
 mod variation;
 
 use std::time::Instant;
 
 use fitness::Fitness;
 use gene::Gene;
+use genotype::Genotype;
 use selection::SelectionOperator;
 use variation::VariationOperator;
 
 use crate::{
-    fitness::OptimizationGoal, gene::BoolDomain, genome::Genome, selection::TruncationSelection,
-    simplega::SimpleGABuilder, variation::Umda,
+    ecga::Ecga,
+    fitness::OptimizationGoal,
+    gene::BoolDomain,
+    genome::Genome,
+    selection::TruncationSelection,
+    simplega::SimpleGABuilder,
+    variation::{Umda, UniformCrossover},
 };
 
-type AlleleType = bool;
-type Genotype = Vec<AlleleType>;
+const K: usize = 4;
+const M: usize = 12;
+const GENOME_SIZE: usize = K * M;
 
-const GENOME_SIZE: usize = 4096;
-const POPULATION_SIZE: usize = 450;
-const EVAL_BUDGET: usize = 73000;
+// const GENOME_SIZE: usize = 15;
+const POPULATION_SIZE: usize = 20000;
+const EVAL_BUDGET: usize = 100000;
 const TARGET: usize = GENOME_SIZE;
 const GOAL: OptimizationGoal = OptimizationGoal::Maximize;
-const RUNS: usize = 50;
+const RUNS: usize = 1;
 
-fn one_max(genotype: &Genotype) -> usize {
-    genotype.iter().filter(|bit| **bit).count() // count the number of ones in the bitstring
+type AlleleType = bool;
+type Gnt = [AlleleType; GENOME_SIZE];
+
+fn one_max(genotype: &Gnt) -> usize {
+    genotype.iter().filter(|bit| *bit).count() // count the number of ones in the bitstring
 }
 
-fn deceptive_trap(genotype: &Genotype) -> usize {
-    let fitness = one_max(genotype);
-
-    if fitness == genotype.len() {
-        return 0;
-    } else if fitness == 0 {
-        return genotype.len();
-    }
-    fitness
+fn one_max_raw(chunk: &[bool]) -> usize {
+    chunk.iter().filter(|bit| **bit).count() // count the number of ones in the bitstring
 }
 
-fn measure_success_rate<G, F, S, V>(
-    builder: SimpleGABuilder<Genotype, AlleleType, G, F, S, V>,
+fn deceptive_trap(genotype: &Gnt) -> usize {
+    genotype
+        .array_chunks::<K>()
+        .map(|chunk| {
+            let fitness = one_max_raw(chunk);
+            if fitness == K {
+                return 0;
+            } else if fitness == 0 {
+                return K;
+            }
+            fitness
+        })
+        .sum()
+}
+
+fn measure_success_rate<G, F, S, V, const LEN: usize>(
+    builder: SimpleGABuilder<Gnt, AlleleType, G, F, S, V, LEN>,
     n: usize,
 ) -> f64
 where
     G: Gene<AlleleType>,
     F: Fitness,
     S: SelectionOperator,
-    V: VariationOperator<Genotype, AlleleType>,
+    V: VariationOperator<Gnt, AlleleType, F, LEN>,
 {
     let mut success_count = 0usize;
     for i in 0..n {
@@ -68,22 +92,31 @@ where
             simplega::Status::BudgetReached(_) => (),
         }
 
-        println!("[{}/{}] Finished with status: {:?}", i + 1, n, status)
+        println!(
+            "[{}/{}] Finished with status: {:?}. Best fitness: {:?}, Worst fitness: {:?}",
+            i + 1,
+            n,
+            status,
+            ga.best_individual().unwrap().fitness(),
+            ga.worst_individual().unwrap().fitness()
+        )
     }
 
     return (success_count as f64) / (n as f64);
 }
 
 fn main() {
-    let genome = Genome::discrete_genome_with_domain(&bdom!(), GENOME_SIZE);
+    let genome: Genome<_, _, GENOME_SIZE> = Genome::with_discrete_domain(&bdom!());
 
     let builder = SimpleGABuilder::new()
         .genome(&genome)
         .random_population(POPULATION_SIZE)
-        .evaluation_function(&one_max)
+        .evaluation_function(&deceptive_trap)
         .goal(GOAL)
         .selection(TruncationSelection)
-        .variation(Umda::with_genome(&genome))
+        // .variation(UniformCrossover::default())
+        // .variation(Umda::with_genome(&genome))
+        .variation(Ecga::with_genome(&genome, 0.02))
         .target(TARGET);
 
     // Run EA

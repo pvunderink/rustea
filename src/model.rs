@@ -1,38 +1,41 @@
 use crate::{
     fitness::Fitness,
     gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
-    genome::{Genome, Genotype},
+    genome::Genome,
+    genotype::Genotype,
     individual::Individual,
+    types::CollectUnsafe,
 };
 use approx::abs_diff_ne;
 use rand::Rng;
 use rand_distr::WeightedIndex;
+use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{marker::PhantomData, ops::Index};
 
 #[derive(Debug)]
-pub struct UnivariateModel<'a, Gnt, A, D, F>
+pub struct UnivariateModel<'a, Gnt, A, D, F, const LEN: usize>
 where
-    Gnt: Genotype<A>,
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     distributions: Vec<WeightedIndex<usize>>,
-    genome: &'a Genome<A, DiscreteGene<A, D>>,
+    genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
     _genotype: PhantomData<Gnt>,
     _fitness: PhantomData<F>,
 }
 
-impl<'a, Gnt, A, D, F> UnivariateModel<'a, Gnt, A, D, F>
+impl<'a, Gnt, A, D, F, const LEN: usize> UnivariateModel<'a, Gnt, A, D, F, LEN>
 where
-    Gnt: Genotype<A>,
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     pub fn estimate_from_population(
-        genome: &'a Genome<A, DiscreteGene<A, D>>,
-        population: &[Individual<Gnt, A, F>],
+        genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
+        population: &[Individual<Gnt, A, F, LEN>],
     ) -> Self {
         assert!(!population.is_empty());
 
@@ -62,7 +65,7 @@ where
         }
     }
 
-    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F>
+    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F, LEN>
     where
         R: Rng,
     {
@@ -71,7 +74,7 @@ where
             .iter()
             .enumerate()
             .map(|(idx, gene)| gene.sample_with_weights(rng, &self.distributions[idx]))
-            .collect();
+            .collect_unsafe();
 
         Individual::from_genotype(genotype)
     }
@@ -121,13 +124,18 @@ impl Factorization {
 
     pub fn join_all(&self) -> impl Iterator<Item = Self> + '_ {
         let n: usize = self.factors.len();
-        (0..n - 1)
-            .flat_map(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
-            .into_iter()
+        (0..n - 1).flat_map(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
     }
 
-    pub fn iter(&self) -> std::slice::Iter<'_, Vec<usize>> {
-        self.factors.iter()
+    // pub fn par_join_all(&self) -> impl ParallelIterator<Item = Self> + '_ {
+    //     let n: usize = self.factors.len();
+    //     (0..n - 1)
+    //         .into_par_iter()
+    //         .flat_map_iter(move |idx_a| (idx_a + 1..n).map(move |idx_b| self.join(idx_a, idx_b)))
+    // }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Vec<usize>> + '_ {
+        self.factors.iter().filter(|f| !f.is_empty())
     }
 
     pub fn iter_genotype<'a, Gnt, A>(
@@ -135,16 +143,72 @@ impl Factorization {
         genotype: &'a Gnt,
     ) -> impl Iterator<Item = Vec<(usize, A)>> + '_
     where
-        Gnt: Genotype<A>,
         A: Allele + Discrete,
+        Gnt: Genotype<A>,
     {
-        self.iter().map(|idxs| {
-            idxs.iter()
-                .zip(idxs.iter().map(|idx| genotype.get(idx)))
-                .collect()
-        })
+        self.iter()
+            .map(|idxs| idxs.iter().map(|idx| (*idx, genotype.get(*idx))).collect())
     }
 }
+
+// struct JoinedFactorizationIterator<'a> {
+//     factorization: Vec<Vec<usize>>,
+//     current_idx_a: usize,
+//     current_idx_b: usize,
+//     old_a: Vec<usize>,
+//     old_b: Vec<usize>,
+//     _useless_ptr: &'a Factorization,
+// }
+
+// impl<'a> Iterator for JoinedFactorizationIterator<'a> {
+//     type Item = &'a Factorization;
+
+//     fn next(&'a mut self) -> Option<Self::Item> {
+//         // repair from previous
+//         if !(self.current_idx_a == 0 && self.current_idx_b == 0) {}
+
+//         // evaluate next
+//         self.current_idx_b += 1;
+
+//         if self.current_idx_b == self.factorization.factors.len() {}
+
+//         if self.current_idx_a == self.factorization.factors.len() {
+//             return None;
+//         }
+
+//         {
+//             // save copy of factor a
+//             let factor_a = &self.factorization.factors[self.current_idx_a];
+//             self.old_a.clear();
+//             self.old_a.extend(factor_a.iter());
+//         }
+
+//         {
+//             // save copy of factor b
+//             let factor_b = &self.factorization.factors[self.current_idx_b];
+//             self.old_b.clear();
+//             self.old_b.extend(factor_b.iter());
+//         }
+
+//         // append contents of factor b to factor a
+//         self.factorization.factors[self.current_idx_a]
+//             .append(&mut self.factorization.factors[self.current_idx_b]);
+
+//         // return current factorization
+//         Some(&self.factorization)
+//     }
+// }
+
+// impl ParallelIterator for JoinedFactorizationIterator {
+//     type Item;
+
+//     fn drive_unindexed<C>(self, consumer: C) -> C::Result
+//     where
+//         C: rayon::iter::plumbing::UnindexedConsumer<Self::Item>,
+//     {
+//         todo!()
+//     }
+// }
 
 impl PartialEq for Factorization {
     fn eq(&self, other: &Self) -> bool {
@@ -171,31 +235,31 @@ impl IntoIterator for Factorization {
 }
 
 #[derive(Debug)]
-struct MultivariateModel<'a, Gnt, A, D, F>
+pub struct MultivariateModel<'a, Gnt, A, D, F, const LEN: usize>
 where
-    Gnt: Genotype<A>,
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     factorization: Factorization,
     probabilities: Vec<Vec<f64>>,
-    genome: &'a Genome<A, DiscreteGene<A, D>>,
+    genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
     sample_size: usize,
-    _genotype: PhantomData<Gnt>,
     _fitness: PhantomData<F>,
+    _genotype: PhantomData<Gnt>,
 }
 
-impl<'a, Gnt, A, D, F> MultivariateModel<'a, Gnt, A, D, F>
+impl<'a, Gnt, A, D, F, const LEN: usize> MultivariateModel<'a, Gnt, A, D, F, LEN>
 where
-    Gnt: Genotype<A>,
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     pub fn estimate_from_population(
-        genome: &'a Genome<A, DiscreteGene<A, D>>,
-        population: &[Individual<Gnt, A, F>],
+        genome: &'a Genome<A, DiscreteGene<A, D>, LEN>,
+        population: &[&Individual<Gnt, A, F, LEN>],
         factorization: Factorization,
     ) -> Self {
         assert!(!population.is_empty());
@@ -205,7 +269,7 @@ where
             .map(|idxs| {
                 let n = idxs
                     .iter()
-                    .fold(1, |acc, idx| acc * genome.get(idx).domain().len());
+                    .fold(1, |acc, idx| acc * genome.get(*idx).domain().len());
                 vec![0; n]
             })
             .collect();
@@ -239,7 +303,7 @@ where
             .map(|counts| {
                 counts
                     .iter()
-                    .map(|count| count as f64 / population.len() as f64)
+                    .map(|count| *count as f64 / population.len() as f64)
                     .collect()
             })
             .collect();
@@ -249,12 +313,12 @@ where
             probabilities,
             genome,
             sample_size: population.len(),
-            _genotype: PhantomData,
             _fitness: PhantomData,
+            _genotype: PhantomData,
         }
     }
 
-    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F>
+    pub fn sample<R>(&self, rng: &mut R) -> Individual<Gnt, A, F, LEN>
     where
         R: Rng,
     {
@@ -276,7 +340,7 @@ where
                         .iter()
                         .enumerate()
                         .fold(vec![1usize; n], |acc, (i, gene_idx)| {
-                            let domain = self.genome.get(gene_idx).domain();
+                            let domain = self.genome.get(*gene_idx).domain();
                             let l = domain.len();
                             let mut new_acc = acc.clone();
 
@@ -294,11 +358,11 @@ where
                     .iter()
                     .zip(allele_idxs.into_iter())
                     .for_each(|(gene_idx, allele_idx)| {
-                        alleles[gene_idx] = self.genome.get(gene_idx).domain().get(allele_idx);
+                        alleles[*gene_idx] = self.genome.get(*gene_idx).domain().get(allele_idx);
                     })
             });
 
-        Individual::from_genotype(alleles.into_iter().collect())
+        Individual::from_genotype(alleles.into_iter().collect_unsafe())
     }
 
     pub fn compressed_population_complexity(&self) -> f64 {
@@ -308,12 +372,29 @@ where
             .map(|probs| {
                 probs
                     .iter()
-                    .filter(|p| abs_diff_ne!(*p, 0.0, epsilon = 1e-5))
+                    .filter(|p| abs_diff_ne!(**p, 0.0, epsilon = 1e-5))
                     .map(|p| -p * p.log2())
                     .sum::<f64>()
             })
             .sum();
         self.sample_size as f64 * entropy_sum
+    }
+
+    pub fn model_complexity(&self) -> f64 {
+        ((self.sample_size + 1) as f64).log2()
+            * self
+                .probabilities
+                .iter()
+                .map(|probs| probs.len() - 1)
+                .sum::<usize>() as f64
+    }
+
+    pub fn combined_complexity(&self) -> f64 {
+        self.compressed_population_complexity() + 0.2 * self.model_complexity()
+    }
+
+    pub fn factorization(&self) -> &Factorization {
+        &self.factorization
     }
 }
 
@@ -383,11 +464,11 @@ mod tests {
 
     #[test]
     fn multivariate_model_with_one_joined_factor() {
-        type Gnt = Vec<bool>;
-        type Ftnss = f64;
         const N: usize = 10;
+        type Gnt = [bool; N];
+        type Ftnss = f64;
 
-        let genome = Genome::discrete_genome_with_domain(&bdom!(), N);
+        let genome = Genome::with_bool_domain();
 
         // Create factorization: [(0,1), 2, 3, 4, 5, 6, 7, 8, 9]
         let factorization = Factorization::univariate(N).join(0, 1);
@@ -406,12 +487,15 @@ mod tests {
                     genotype[1] = false;
                 }
 
-                Individual::<_, _, Ftnss>::from_genotype(genotype)
+                Individual::<_, _, Ftnss, N>::from_genotype(genotype)
             })
             .collect();
 
-        let model =
-            MultivariateModel::estimate_from_population(&genome, &population, factorization);
+        let model = MultivariateModel::estimate_from_population(
+            &genome,
+            &population.iter().collect::<Vec<_>>(),
+            factorization,
+        );
 
         let mut counts = vec![0usize; N - 2];
 
@@ -458,29 +542,29 @@ mod tests {
         type Ftnss = f64;
         const N: usize = 4;
 
-        let genome = Genome::discrete_genome_with_domain(&bdom!(), N);
+        let genome = Genome::with_bool_domain();
 
         // Create random population
         let population: Vec<_> = vec![
-            Individual::<_, _, Ftnss>::from_genotype(vec![true, false, false, false]),
-            Individual::from_genotype(vec![true, true, false, true]),
-            Individual::from_genotype(vec![false, true, true, true]),
-            Individual::from_genotype(vec![true, true, false, false]),
-            Individual::from_genotype(vec![false, false, true, false]),
-            Individual::from_genotype(vec![false, true, true, true]),
-            Individual::from_genotype(vec![true, false, false, false]),
-            Individual::from_genotype(vec![true, false, false, true]),
+            Individual::<_, _, Ftnss, N>::from_genotype([true, false, false, false]),
+            Individual::from_genotype([true, true, false, true]),
+            Individual::from_genotype([false, true, true, true]),
+            Individual::from_genotype([true, true, false, false]),
+            Individual::from_genotype([false, false, true, false]),
+            Individual::from_genotype([false, true, true, true]),
+            Individual::from_genotype([true, false, false, false]),
+            Individual::from_genotype([true, false, false, true]),
         ];
 
         let univariate_model = MultivariateModel::estimate_from_population(
             &genome,
-            &population,
+            &population.iter().collect::<Vec<_>>(),
             Factorization::univariate(N),
         );
 
         let joined_model = MultivariateModel::estimate_from_population(
             &genome,
-            &population,
+            &population.iter().collect::<Vec<_>>(),
             Factorization::univariate(N).join(0, 2),
         );
 
@@ -495,5 +579,41 @@ mod tests {
             23.6,
             epsilon = 0.1
         );
+    }
+
+    #[test]
+    fn model_complexity() {
+        type Ftnss = f64;
+        const N: usize = 4;
+
+        let genome = Genome::with_bool_domain();
+
+        // Create random population
+        let population: Vec<_> = vec![
+            Individual::<_, _, Ftnss, N>::from_genotype([true, false, false, false]),
+            Individual::from_genotype([true, true, false, true]),
+            Individual::from_genotype([false, true, true, true]),
+            Individual::from_genotype([true, true, false, false]),
+            Individual::from_genotype([false, false, true, false]),
+            Individual::from_genotype([false, true, true, true]),
+            Individual::from_genotype([true, false, false, false]),
+            Individual::from_genotype([true, false, false, true]),
+        ];
+
+        let univariate_model = MultivariateModel::estimate_from_population(
+            &genome,
+            &population.iter().collect::<Vec<_>>(),
+            Factorization::univariate(N),
+        );
+
+        let joined_model = MultivariateModel::estimate_from_population(
+            &genome,
+            &population.iter().collect::<Vec<_>>(),
+            Factorization::univariate(N).join(0, 2),
+        );
+
+        assert_abs_diff_eq!(univariate_model.model_complexity(), 12.7, epsilon = 0.1);
+
+        assert_abs_diff_eq!(joined_model.model_complexity(), 15.8, epsilon = 0.1);
     }
 }

@@ -3,7 +3,8 @@ use std::fmt::Debug;
 use crate::{
     fitness::{Fitness, FitnessFunc, OptimizationGoal},
     gene::{Allele, Gene},
-    genome::{Genome, Genotype},
+    genome::Genome,
+    genotype::Genotype,
     individual::Individual,
     selection::SelectionOperator,
     variation::VariationOperator,
@@ -15,37 +16,37 @@ pub enum Status {
     BudgetReached(usize),
 }
 
-pub struct SimpleGA<'a, Gnt, A, F, S, V>
+pub struct SimpleGA<'a, Gnt, A, F, S, V, const LEN: usize>
 where
-    Gnt: Genotype<A>, // type of genotype
     A: Allele,
     F: Fitness,
     S: SelectionOperator,
-    V: VariationOperator<Gnt, A>,
+    V: VariationOperator<Gnt, A, F, LEN>,
+    Gnt: Genotype<A>,
 {
     // genome: Gnm,
-    population: Vec<Individual<Gnt, A, F>>,
-    fitness_func: FitnessFunc<'a, Gnt, A, F>,
+    population: Vec<Individual<Gnt, A, F, LEN>>,
+    fitness_func: FitnessFunc<'a, Gnt, A, F, LEN>,
     selection_operator: S,
     variation_operator: V,
     target_fitness: Option<F>,
 }
 
-impl<'a, Gnt, A, F, S, V> SimpleGA<'a, Gnt, A, F, S, V>
+impl<'a, Gnt, A, F, S, V, const LEN: usize> SimpleGA<'a, Gnt, A, F, S, V, LEN>
 where
-    Gnt: Genotype<A>, // type of genotype
     A: Allele,
     F: Fitness,
     S: SelectionOperator,
-    V: VariationOperator<Gnt, A>,
+    V: VariationOperator<Gnt, A, F, LEN>,
+    Gnt: Genotype<A>,
 {
-    pub fn best_individual(&self) -> Option<&Individual<Gnt, A, F>> {
+    pub fn best_individual(&self) -> Option<&Individual<Gnt, A, F, LEN>> {
         self.population
             .iter()
             .min_by(|idv_a, idv_b| self.fitness_func.cmp(&idv_a.fitness(), &idv_b.fitness()))
     }
 
-    pub fn worst_individual(&self) -> Option<&Individual<Gnt, A, F>> {
+    pub fn worst_individual(&self) -> Option<&Individual<Gnt, A, F, LEN>> {
         self.population
             .iter()
             .max_by(|idv_a, idv_b| self.fitness_func.cmp(&idv_a.fitness(), &idv_b.fitness()))
@@ -57,6 +58,7 @@ where
             self.fitness_func.evaluate(idv);
         });
 
+        // Main loop
         while self.fitness_func.evaluations() < evaluation_budget {
             // Check if target fitness is reached
             if let Some(target) = self.target_fitness {
@@ -76,6 +78,11 @@ where
             // Perform selection
             self.selection_operator
                 .select(&mut self.population, offspring, &self.fitness_func);
+
+            println!(
+                "Best fitness: {:?}",
+                self.best_individual().unwrap().fitness()
+            )
         }
 
         Status::BudgetReached(self.fitness_func.evaluations())
@@ -83,17 +90,17 @@ where
 }
 
 #[derive(Clone)]
-pub struct SimpleGABuilder<'a, Gnt, A, G, F, S, V>
+pub struct SimpleGABuilder<'a, Gnt, A, G, F, S, V, const LEN: usize>
 where
-    Gnt: Genotype<A>, // type of genotype
     A: Allele,
     G: Gene<A>,
     F: Fitness,
     S: SelectionOperator,
-    V: VariationOperator<Gnt, A>,
+    V: VariationOperator<Gnt, A, F, LEN>,
+    Gnt: Genotype<A>,
 {
-    genome: Option<&'a Genome<A, G>>,
-    population: Option<Vec<Individual<Gnt, A, F>>>,
+    genome: Option<&'a Genome<A, G, LEN>>,
+    population: Option<Vec<Individual<Gnt, A, F, LEN>>>,
     evaluation_func: Option<&'a (dyn Fn(&Gnt) -> F + Send + Sync)>,
     goal: OptimizationGoal,
     selection_operator: Option<S>,
@@ -101,14 +108,14 @@ where
     target_fitness: Option<F>,
 }
 
-impl<'a, Gnt, A, G, F, S, V> SimpleGABuilder<'a, Gnt, A, G, F, S, V>
+impl<'a, Gnt, A, G, F, S, V, const LEN: usize> SimpleGABuilder<'a, Gnt, A, G, F, S, V, LEN>
 where
-    Gnt: Genotype<A>, // type of genotype
     A: Allele,
     G: Gene<A>,
     F: Fitness,
     S: SelectionOperator,
-    V: VariationOperator<Gnt, A>,
+    V: VariationOperator<Gnt, A, F, LEN>,
+    Gnt: Genotype<A>,
 {
     pub fn new() -> Self {
         Self {
@@ -122,7 +129,7 @@ where
         }
     }
 
-    pub fn genome(mut self, genome: &'a Genome<A, G>) -> Self {
+    pub fn genome(mut self, genome: &'a Genome<A, G, LEN>) -> Self {
         self.genome = Some(genome);
         self
     }
@@ -168,7 +175,7 @@ where
         self
     }
 
-    pub fn build(self) -> SimpleGA<'a, Gnt, A, F, S, V> {
+    pub fn build(self) -> SimpleGA<'a, Gnt, A, F, S, V, LEN> {
         let Some(population) = self.population else {
             panic!("Failed to build: population not initialized");
         };

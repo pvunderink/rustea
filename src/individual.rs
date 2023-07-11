@@ -5,26 +5,27 @@ use rand::Rng;
 use crate::{
     fitness::Fitness,
     gene::{Allele, Gene},
-    genome::{Genome, Genotype},
+    genome::Genome,
+    genotype::Genotype,
 };
 
 #[derive(Debug)]
-pub struct Individual<Gnt, A, F>
+pub struct Individual<Gnt, A, F, const LEN: usize>
 where
-    Gnt: Genotype<A>,
     A: Allele,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     genotype: Gnt,
     fitness: Option<F>,
     _gene: PhantomData<A>,
 }
 
-impl<Gnt, A, F> Individual<Gnt, A, F>
+impl<Gnt, A, F, const LEN: usize> Individual<Gnt, A, F, LEN>
 where
-    Gnt: Genotype<A>,
     A: Allele,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     pub fn from_genotype(genotype: Gnt) -> Self {
         Individual {
@@ -34,7 +35,7 @@ where
         }
     }
 
-    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<A, G>) -> Self
+    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<A, G, LEN>) -> Self
     where
         R: Rng + ?Sized,
         G: Gene<A>,
@@ -64,11 +65,11 @@ where
     }
 }
 
-impl<Gnt, A, F> Clone for Individual<Gnt, A, F>
+impl<Gnt, A, F, const LEN: usize> Clone for Individual<Gnt, A, F, LEN>
 where
-    Gnt: Genotype<A>,
     A: Allele,
     F: Fitness,
+    Gnt: Genotype<A>,
 {
     fn clone(&self) -> Self {
         Self {
