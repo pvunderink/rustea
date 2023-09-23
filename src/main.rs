@@ -1,34 +1,20 @@
-#![feature(array_chunks)]
-
-mod ecga;
-mod fitness;
-mod gene;
-mod genome;
-mod genotype;
-mod individual;
-mod model;
-mod rng;
-mod selection;
-mod simplega;
-mod statistics;
-mod types;
-mod variation;
-
 use std::time::Instant;
 
-use fitness::Fitness;
-use gene::Gene;
-use genotype::{Genotype, SizedVec};
-use selection::SelectionOperator;
-use variation::VariationOperator;
+use rustea_lib::bdom;
+use rustea_lib::fitness::Fitness;
+use rustea_lib::gene::Gene;
+use rustea_lib::genotype::{Genotype, SizedVec};
+use rustea_lib::selection::SelectionOperator;
+use rustea_lib::variation::VariationOperator;
 
-use crate::{
+use rustea_lib::{
     ecga::Ecga,
     fitness::OptimizationGoal,
     gene::BoolDomain,
     genome::Genome,
     selection::TruncationSelection,
     simplega::SimpleGABuilder,
+    simplega::Status,
     variation::{Umda, UniformCrossover},
 };
 
@@ -90,8 +76,8 @@ where
         let status = ga.run(EVAL_BUDGET);
 
         match status {
-            simplega::Status::TargetReached(_) => success_count += 1,
-            simplega::Status::BudgetReached(_) => (),
+            Status::TargetReached(_) => success_count += 1,
+            Status::BudgetReached(_) => (),
         }
 
         println!(
