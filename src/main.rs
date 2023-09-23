@@ -1,3 +1,5 @@
+pub extern crate rustea_lib;
+
 use std::time::Instant;
 
 use rustea_lib::bdom;
