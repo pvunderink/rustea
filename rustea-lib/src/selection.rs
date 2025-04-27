@@ -26,9 +26,9 @@ pub struct NoSelection;
 impl SelectionOperator for NoSelection {
     fn select<Gnt, A, F>(
         &mut self,
-        population: &mut Vec<Individual<Gnt, A, F>>,
-        offspring: Vec<Individual<Gnt, A, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        _population: &mut Vec<Individual<Gnt, A, F>>,
+        _offspring: Vec<Individual<Gnt, A, F>>,
+        _fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -46,7 +46,7 @@ impl SelectionOperator for CopyOffspringSelection {
         &mut self,
         population: &mut Vec<Individual<Gnt, A, F>>,
         offspring: Vec<Individual<Gnt, A, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        _fitness_func: &FitnessFunc<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -82,8 +82,8 @@ impl SelectionOperator for TruncationSelection {
 
 #[derive(Clone)]
 pub struct TournamentSelection {
-    tournament_size: usize,
-    include_parents: bool,
+    pub tournament_size: usize,
+    pub include_parents: bool,
 }
 
 impl SelectionOperator for TournamentSelection {

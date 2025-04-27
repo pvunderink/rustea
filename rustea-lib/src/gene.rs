@@ -19,6 +19,19 @@ pub trait Gene<A>: Send + Sync + Clone {
         R: Rng + ?Sized;
 }
 
+#[derive(Clone)]
+pub struct DummyGene<A: Default> {
+    _marker: PhantomData<A>,
+}
+impl<A: Allele> Gene<A> for DummyGene<A> {
+    fn sample_uniform<R>(&self, rng: &mut R) -> A
+    where
+        R: Rng + ?Sized,
+    {
+        A::default()
+    }
+}
+
 pub trait Allele: Sized + Send + Sync + Copy + Debug + Default {}
 
 // Marker for discrete-valued genes and alleles

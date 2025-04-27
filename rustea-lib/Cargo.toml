@@ -22,5 +22,5 @@ arrayvec = "0.7.4"
 [profile.release]
 debug = 1
 
-[rust]
-debuginfo-level = 1
+# [rust]
+# debuginfo-level = 1

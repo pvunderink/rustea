@@ -194,6 +194,12 @@ where
     A: Allele + Discrete,
     Gnt: Genotype<A> + Cartesian<A>,
 {
+    pub fn new() -> Self {
+        Self {
+            _gene: Default::default(),
+            _genotype: Default::default(),
+        }
+    }
     fn crossover<F>(
         &self,
         parent_a: &Individual<Gnt, A, F>,
@@ -234,6 +240,7 @@ where
     }
 }
 
+#[macro_export]
 macro_rules! impl_two_parent_crossover {
     (for $($t:ty),+) => {
         $(

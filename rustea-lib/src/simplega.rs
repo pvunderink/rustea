@@ -150,6 +150,17 @@ where
         self
     }
 
+    pub fn with_population(mut self, population: Vec<Gnt>) -> Self {
+        let population = population
+            .into_iter()
+            .map(|genotype| Individual::from_genotype(genotype))
+            .collect();
+
+        self.population = Some(population);
+
+        self
+    }
+
     pub fn goal(mut self, goal: OptimizationGoal) -> Self {
         self.goal = goal;
         self
