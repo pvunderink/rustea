@@ -30,6 +30,7 @@ where
     selection_operator: S,
     variation_operator: V,
     target_fitness: Option<F>,
+    verbose: bool,
 }
 
 impl<'a, Gnt, A, F, S, V> SimpleGA<'a, Gnt, A, F, S, V>
@@ -62,14 +63,16 @@ where
 
         // Main loop
         while self.fitness_func.evaluations() < evaluation_budget {
-            if iteration % 100 == 0 {
-                println!(
-                    "Iteration: {:?}, Budget: {:?}/{:?}, Best: {:?}",
-                    iteration,
-                    self.fitness_func.evaluations(),
-                    evaluation_budget,
-                    self.best_individual().unwrap().fitness()
-                )
+            if self.verbose {
+                if iteration % 100 == 0 {
+                    println!(
+                        "Iteration: {:?}, Budget: {:?}/{:?}, Best: {:?}",
+                        iteration,
+                        self.fitness_func.evaluations(),
+                        evaluation_budget,
+                        self.best_individual().unwrap().fitness()
+                    )
+                }
             }
             // Check if target fitness is reached
             if let Some(target) = self.target_fitness {
@@ -90,10 +93,6 @@ where
             self.selection_operator
                 .select(&mut self.population, offspring, &self.fitness_func);
 
-            // println!(
-            //     "Best fitness: {:?}",
-            //     self.best_individual().unwrap().fitness()
-            // )
             iteration += 1;
         }
 
@@ -118,6 +117,7 @@ where
     selection_operator: Option<S>,
     variation_operator: Option<V>,
     target_fitness: Option<F>,
+    verbose: bool,
 }
 
 impl<'a, Gnt, A, G, F, S, V> SimpleGABuilder<'a, Gnt, A, G, F, S, V>
@@ -138,6 +138,7 @@ where
             selection_operator: None,
             variation_operator: None,
             target_fitness: None,
+            verbose: false,
         }
     }
 
@@ -182,6 +183,11 @@ where
         self
     }
 
+    pub fn verbose(mut self, verbose: bool) -> Self {
+        self.verbose = verbose;
+        self
+    }
+
     pub fn build(self) -> SimpleGA<'a, Gnt, A, F, S, V> {
         let Some(population) = self.population else {
             panic!("Failed to build: population not initialized");
@@ -203,12 +209,15 @@ where
 
         let target_fitness = self.target_fitness;
 
+        let verbose = self.verbose;
+
         SimpleGA {
             population,
             fitness_func,
             selection_operator,
             variation_operator,
             target_fitness,
+            verbose,
         }
     }
 }
