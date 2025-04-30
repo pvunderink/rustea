@@ -1,7 +1,7 @@
 use rand::seq::SliceRandom;
 
 use crate::{
-    fitness::{Fitness, FitnessFunc},
+    fitness::{Fitness, FitnessEvaluator},
     gene::Allele,
     genotype::Genotype,
     individual::Individual,
@@ -12,7 +12,7 @@ pub trait SelectionOperator: Clone {
         &mut self,
         population: &mut Vec<Individual<Gnt, A, F>>,
         offspring: Vec<Individual<Gnt, A, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -28,7 +28,7 @@ impl SelectionOperator for NoSelection {
         &mut self,
         _population: &mut Vec<Individual<Gnt, A, F>>,
         _offspring: Vec<Individual<Gnt, A, F>>,
-        _fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        _fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -46,7 +46,7 @@ impl SelectionOperator for CopyOffspringSelection {
         &mut self,
         population: &mut Vec<Individual<Gnt, A, F>>,
         offspring: Vec<Individual<Gnt, A, F>>,
-        _fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        _fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -66,7 +66,7 @@ impl SelectionOperator for TruncationSelection {
         &mut self,
         population: &mut Vec<Individual<Gnt, A, F>>,
         offspring: Vec<Individual<Gnt, A, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,
@@ -91,7 +91,7 @@ impl SelectionOperator for TournamentSelection {
         &mut self,
         population: &mut Vec<Individual<Gnt, A, F>>,
         offspring: Vec<Individual<Gnt, A, F>>,
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) where
         Self: Sized,
         A: Allele,

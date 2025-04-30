@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
-    fitness::{Fitness, FitnessFunc},
+    fitness::{Fitness, FitnessEvaluator},
     gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
     genome::Genome,
     genotype::FixedSizeGenotype,
@@ -85,7 +85,7 @@ where
     fn select_individuals<'b>(
         &self,
         population: &'b [Individual<Gnt, A, F>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) -> Vec<&'b Individual<Gnt, A, F>> {
         let mut selection: Vec<_> = population.iter().collect();
         selection.sort_unstable_by(|a, b| fitness_func.cmp(&a.fitness(), &b.fitness()));
@@ -106,7 +106,7 @@ where
     fn create_offspring(
         &self,
         population: &[Individual<Gnt, A, F>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) -> Vec<Individual<Gnt, A, F>>
     where
         Self: Sized,

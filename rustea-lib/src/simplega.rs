@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::{
-    fitness::{Fitness, FitnessFunc, OptimizationGoal},
+    fitness::{Fitness, FitnessEvaluator, FitnessFunc, OptimizationGoal},
     gene::{Allele, Gene},
     genome::Genome,
     genotype::{FixedSizeGenotype, Genotype},
@@ -26,7 +26,7 @@ where
 {
     // genome: Gnm,
     population: Vec<Individual<Gnt, A, F>>,
-    fitness_func: FitnessFunc<'a, Gnt, A, F>,
+    fitness_func: FitnessEvaluator<'a, Gnt, A, F>,
     selection_operator: S,
     variation_operator: V,
     target_fitness: Option<F>,
@@ -113,7 +113,7 @@ where
 {
     genome: Option<&'a Genome<Gnt, A, G>>,
     population: Option<Vec<Individual<Gnt, A, F>>>,
-    evaluation_func: Option<&'a (dyn Fn(&Gnt) -> F + Send + Sync)>,
+    evaluation_func: Option<&'a (dyn FitnessFunc<Gnt, A, F>)>,
     goal: OptimizationGoal,
     selection_operator: Option<S>,
     variation_operator: Option<V>,
@@ -162,7 +162,7 @@ where
         self
     }
 
-    pub fn evaluation_function(mut self, func: &'a (dyn Fn(&Gnt) -> F + Send + Sync)) -> Self {
+    pub fn evaluation_function(mut self, func: &'a (dyn FitnessFunc<Gnt, A, F>)) -> Self {
         self.evaluation_func = Some(func);
         self
     }
@@ -191,7 +191,7 @@ where
             panic!("Failed to build: evaluation function not specified");
         };
 
-        let fitness_func = FitnessFunc::new(evaluation_func, self.goal);
+        let fitness_func = FitnessEvaluator::new(evaluation_func, self.goal);
 
         let Some(selection_operator) = self.selection_operator else {
             panic!("Failed to build: selection operator not specified");

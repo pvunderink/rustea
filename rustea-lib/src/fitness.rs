@@ -19,35 +19,51 @@ macro_rules! impl_fitness {
     (for $($ty:ty),+) => {
         $(
             impl Fitness for $ty {}
-
         )*
     };
 }
 
 impl_fitness!(for u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 
-pub struct FitnessFunc<'a, Gnt, A, F>
+pub trait FitnessFunc<Gnt, A, F>: Send + Sync
+where
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
+{
+    fn evaluate(&self, genotype: &Gnt) -> F;
+}
+
+impl<Gnt, A, F, T: Fn(&Gnt) -> F + Send + Sync> FitnessFunc<Gnt, A, F> for T
+where
+    Gnt: Genotype<A>,
+    A: Allele,
+    F: Fitness,
+{
+    fn evaluate(&self, genotype: &Gnt) -> F {
+        self(genotype)
+    }
+}
+
+pub struct FitnessEvaluator<'a, Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
     Gnt: Genotype<A>,
 {
     counter: Arc<Mutex<usize>>,
-    evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
+    evaluation_func: &'a dyn FitnessFunc<Gnt, A, F>,
     goal: OptimizationGoal,
     _gene: PhantomData<A>,
 }
 
-impl<'a, Gnt, A, F> FitnessFunc<'a, Gnt, A, F>
+impl<'a, Gnt, A, F> FitnessEvaluator<'a, Gnt, A, F>
 where
     A: Allele,
     F: Fitness,
     Gnt: Genotype<A>,
 {
-    pub fn new(
-        evaluation_func: &'a (dyn Fn(&Gnt) -> F + Send + Sync),
-        goal: OptimizationGoal,
-    ) -> Self {
+    pub fn new(evaluation_func: &'a dyn FitnessFunc<Gnt, A, F>, goal: OptimizationGoal) -> Self {
         Self {
             counter: Arc::new(Mutex::new(0)),
             evaluation_func,
@@ -57,7 +73,7 @@ where
     }
 
     pub fn evaluate(&self, individual: &mut Individual<Gnt, A, F>) -> F {
-        let fitness = (self.evaluation_func)(individual.genotype());
+        let fitness = self.evaluation_func.evaluate(individual.genotype());
         individual.set_fitness(fitness);
 
         let mut counter = self.counter.lock().unwrap();

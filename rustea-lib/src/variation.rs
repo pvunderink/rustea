@@ -1,5 +1,5 @@
 use crate::{
-    fitness::{Fitness, FitnessFunc},
+    fitness::{Fitness, FitnessEvaluator},
     gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
     genome::Genome,
     genotype::{FixedSizeGenotype, Genotype},
@@ -21,7 +21,7 @@ where
     fn create_offspring(
         &self,
         population: &[Individual<Gnt, A, F>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) -> Vec<Individual<Gnt, A, F>>;
 
     fn mutates(&self) -> bool;
@@ -39,7 +39,7 @@ where
     fn create_offspring(
         &self,
         population: &[Individual<Gnt, A, F>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) -> Vec<Individual<Gnt, A, F>> {
         let offspring = population
             .par_iter()
@@ -250,11 +250,10 @@ macro_rules! impl_two_parent_crossover {
                 fn create_offspring(
                     &self,
                     population: &[Individual<Gnt, A, F>],
-                    fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+                    fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
                 ) -> Vec<Individual<Gnt, A, F>>
                 where
                     Self: Sized,
-                    F: Fitness,
                 {
                     let mut rng = rand::rng();
                     // Shuffle the population
@@ -329,7 +328,7 @@ where
     fn create_offspring(
         &self,
         population: &[Individual<Gnt, A, F>],
-        fitness_func: &FitnessFunc<'_, Gnt, A, F>,
+        fitness_func: &FitnessEvaluator<'_, Gnt, A, F>,
     ) -> Vec<Individual<Gnt, A, F>>
     where
         Self: Sized,
