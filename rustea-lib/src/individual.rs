@@ -6,7 +6,7 @@ use crate::{
     fitness::Fitness,
     gene::{Allele, Gene},
     genome::Genome,
-    genotype::Genotype,
+    genotype::{FixedSizeGenotype, Genotype},
 };
 
 #[derive(Debug)]
@@ -35,20 +35,6 @@ where
         }
     }
 
-    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<Gnt, A, G>) -> Self
-    where
-        R: Rng + ?Sized,
-        G: Gene<A>,
-    {
-        let genotype = genome.sample_uniform(rng);
-
-        Individual {
-            genotype,
-            fitness: None,
-            _gene: PhantomData,
-        }
-    }
-
     pub fn genotype(&self) -> &Gnt {
         &self.genotype
     }
@@ -62,6 +48,27 @@ where
 
     pub fn set_fitness(&mut self, fitness: F) {
         self.fitness = Some(fitness)
+    }
+}
+
+impl<Gnt, A, F> Individual<Gnt, A, F>
+where
+    A: Allele,
+    F: Fitness,
+    Gnt: FixedSizeGenotype<A>,
+{
+    pub fn sample_uniform<R, G>(rng: &mut R, genome: &Genome<Gnt, A, G>) -> Self
+    where
+        R: Rng + ?Sized,
+        G: Gene<A>,
+    {
+        let genotype = genome.sample_uniform(rng);
+
+        Individual {
+            genotype,
+            fitness: None,
+            _gene: PhantomData,
+        }
     }
 }
 

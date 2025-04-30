@@ -9,8 +9,8 @@ use core::{fmt::Debug, panic};
 
 use approx::AbsDiffEq;
 use num_traits::{One, Zero};
-use rand::{distributions::uniform::SampleUniform, Rng};
-use rand_distr::{Distribution, WeightedIndex};
+use rand::{Rng, distr::uniform::SampleUniform};
+use rand_distr::{Distribution, weighted::WeightedIndex};
 
 // TODO: Also implement a trait for uniform sampling
 pub trait Gene<A>: Send + Sync + Clone {
@@ -24,7 +24,7 @@ pub struct DummyGene<A: Default> {
     _marker: PhantomData<A>,
 }
 impl<A: Allele> Gene<A> for DummyGene<A> {
-    fn sample_uniform<R>(&self, rng: &mut R) -> A
+    fn sample_uniform<R>(&self, _: &mut R) -> A
     where
         R: Rng + ?Sized,
     {
@@ -168,7 +168,7 @@ where
     where
         R: Rng + ?Sized,
     {
-        let r: f64 = rng.gen();
+        let r: f64 = rng.random();
         let n: usize = (r * self.len() as f64) as usize;
 
         self.iter().nth(n).unwrap()
@@ -496,7 +496,7 @@ where
     where
         R: Rng + ?Sized,
     {
-        rng.gen_range(self.range.clone())
+        rng.random_range(self.range.clone())
     }
 }
 
@@ -529,7 +529,7 @@ where
     where
         R: Rng + ?Sized,
     {
-        rng.gen_range(self.range.clone())
+        rng.random_range(self.range.clone())
     }
 }
 

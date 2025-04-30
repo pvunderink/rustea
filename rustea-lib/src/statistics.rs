@@ -2,6 +2,7 @@ use ndarray::{Array, Ix1, Ix2};
 use ndarray_linalg::{Cholesky, UPLO};
 use rand::Rng;
 
+#[allow(dead_code)]
 fn sample_multivariate_normal(
     mean: &Array<f64, Ix1>,
     covariance: &Array<f64, Ix2>,
@@ -12,7 +13,7 @@ fn sample_multivariate_normal(
     let lower = covariance.cholesky(UPLO::Lower).unwrap();
 
     // Sample 'n' standard normal variables
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let random_vec: Array<f64, Ix1> = (0..n)
         .map(|_| rng.sample(rand_distr::StandardNormal))
         .collect();
@@ -34,7 +35,7 @@ mod tests {
         const NUM_SAMPLES: usize = 100000; // sample size
         const N: usize = 4; // dimension
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Create random covariance matrix and mean vector
         let mean: Array<f64, Ix1> = (0..N)

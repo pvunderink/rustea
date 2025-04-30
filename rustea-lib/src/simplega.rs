@@ -4,7 +4,7 @@ use crate::{
     fitness::{Fitness, FitnessFunc, OptimizationGoal},
     gene::{Allele, Gene},
     genome::Genome,
-    genotype::Genotype,
+    genotype::{FixedSizeGenotype, Genotype},
     individual::Individual,
     selection::SelectionOperator,
     variation::VariationOperator,
@@ -58,8 +58,19 @@ where
             self.fitness_func.evaluate(idv);
         });
 
+        let mut iteration = 0;
+
         // Main loop
         while self.fitness_func.evaluations() < evaluation_budget {
+            if iteration % 100 == 0 {
+                println!(
+                    "Iteration: {:?}, Budget: {:?}/{:?}, Best: {:?}",
+                    iteration,
+                    self.fitness_func.evaluations(),
+                    evaluation_budget,
+                    self.best_individual().unwrap().fitness()
+                )
+            }
             // Check if target fitness is reached
             if let Some(target) = self.target_fitness {
                 if let Some(idv) = self.best_individual() {
@@ -83,6 +94,7 @@ where
             //     "Best fitness: {:?}",
             //     self.best_individual().unwrap().fitness()
             // )
+            iteration += 1;
         }
 
         Status::BudgetReached(self.fitness_func.evaluations())
@@ -131,22 +143,6 @@ where
 
     pub fn genome(mut self, genome: &'a Genome<Gnt, A, G>) -> Self {
         self.genome = Some(genome);
-        self
-    }
-
-    pub fn random_population(mut self, size: usize) -> Self {
-        let Some(genome) = self.genome else {
-            panic!("Failed to initialize population: the genome must be defined before the population can be initialized");
-        };
-
-        let mut rng = rand::thread_rng();
-
-        let population = (0..size)
-            .map(|_| Individual::sample_uniform(&mut rng, genome))
-            .collect();
-
-        self.population = Some(population);
-
         self
     }
 
@@ -214,5 +210,33 @@ where
             variation_operator,
             target_fitness,
         }
+    }
+}
+
+impl<'a, Gnt, A, G, F, S, V> SimpleGABuilder<'a, Gnt, A, G, F, S, V>
+where
+    A: Allele,
+    G: Gene<A>,
+    F: Fitness,
+    S: SelectionOperator,
+    V: VariationOperator<Gnt, A, F>,
+    Gnt: FixedSizeGenotype<A>,
+{
+    pub fn random_population(mut self, size: usize) -> Self {
+        let Some(genome) = self.genome else {
+            panic!(
+                "Failed to initialize population: the genome must be defined before the population can be initialized"
+            );
+        };
+
+        let mut rng = rand::rng();
+
+        let population = (0..size)
+            .map(|_| Individual::sample_uniform(&mut rng, genome))
+            .collect();
+
+        self.population = Some(population);
+
+        self
     }
 }

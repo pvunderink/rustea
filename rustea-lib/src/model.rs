@@ -2,13 +2,13 @@ use crate::{
     fitness::Fitness,
     gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
     genome::Genome,
-    genotype::Genotype,
+    genotype::{FixedSizeGenotype, Genotype},
     individual::Individual,
     types::CollectUnsafe,
 };
 use approx::abs_diff_ne;
 use rand::Rng;
-use rand_distr::WeightedIndex;
+use rand_distr::weighted::WeightedIndex;
 use rayon::prelude::{IntoParallelIterator, ParallelIterator};
 use std::{marker::PhantomData, ops::Index};
 
@@ -31,7 +31,7 @@ where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     pub fn estimate_from_population(
         genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
@@ -141,13 +141,13 @@ impl Factorization {
     pub fn iter_genotype<'a, Gnt, A>(
         &'a self,
         genotype: &'a Gnt,
-    ) -> impl Iterator<Item = Vec<(usize, A)>> + '_
+    ) -> impl Iterator<Item = Vec<(usize, A)>>
     where
         A: Allele + Discrete,
         Gnt: Genotype<A>,
     {
         self.iter()
-            .map(|idxs| idxs.iter().map(|idx| (*idx, genotype.get(*idx))).collect())
+            .map(|idxs| idxs.iter().map(|idx| (idx, genotype.get(idx))).collect())
     }
 }
 
@@ -196,7 +196,7 @@ where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     pub fn estimate_from_population(
         genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
@@ -210,7 +210,7 @@ where
             .map(|idxs| {
                 let n = idxs
                     .iter()
-                    .fold(1, |acc, idx| acc * genome.get(*idx).domain().len());
+                    .fold(1, |acc, idx| acc * genome.get(idx).domain().len());
                 vec![0; n]
             })
             .collect();
@@ -244,7 +244,7 @@ where
             .map(|counts| {
                 counts
                     .iter()
-                    .map(|count| *count as f64 / population.len() as f64)
+                    .map(|count| count as f64 / population.len() as f64)
                     .collect()
             })
             .collect();
@@ -281,7 +281,7 @@ where
                         .iter()
                         .enumerate()
                         .fold(vec![1usize; n], |acc, (i, gene_idx)| {
-                            let domain = self.genome.get(*gene_idx).domain();
+                            let domain = self.genome.get(gene_idx).domain();
                             let l = domain.len();
                             let mut new_acc = acc.clone();
 
@@ -299,7 +299,7 @@ where
                     .iter()
                     .zip(allele_idxs.into_iter())
                     .for_each(|(gene_idx, allele_idx)| {
-                        alleles[*gene_idx] = self.genome.get(*gene_idx).domain().get(allele_idx);
+                        alleles[gene_idx] = self.genome.get(gene_idx).domain().get(allele_idx);
                     })
             });
 
@@ -313,7 +313,7 @@ where
             .map(|probs| {
                 probs
                     .iter()
-                    .filter(|p| abs_diff_ne!(**p, 0.0, epsilon = 1e-5))
+                    .filter(|p| abs_diff_ne!(*p, 0.0, epsilon = 1e-5))
                     .map(|p| -p * p.log2())
                     .sum::<f64>()
             })
@@ -412,13 +412,13 @@ mod tests {
         // Create factorization: [(0,1), 2, 3, 4, 5, 6, 7, 8, 9]
         let factorization = Factorization::univariate(N).join(0, 1);
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Create random population
         let population: Vec<_> = (0..100000)
             .map(|_| {
                 let mut genotype: Gnt = genome.sample_uniform(&mut rng);
-                if rng.gen::<f64>() < 0.25 {
+                if rng.random::<f64>() < 0.25 {
                     genotype[0] = false;
                     genotype[1] = true;
                 } else {

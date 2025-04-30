@@ -1,14 +1,21 @@
 use crate::gene::Allele;
-use crate::genome::Cartesian;
 use crate::types::FromIteratorUnsafe;
 use arrayvec::ArrayVec;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
 #[macro_export]
-macro_rules! impl_cartesian {
+macro_rules! impl_genotype_with_len {
     (for $($t:ty;$g:ty),+) => {
-        $(impl<const N: usize> Cartesian<$g> for $t {
+        $(impl Genotype<$g> for $t {
+            fn len(&self) -> usize {
+                <$t>::len(&self)
+            }
+
+            fn get(&self, index: usize) -> $g {
+                self[index]
+            }
+
             fn set(&mut self, index: usize, bit: $g) {
                 self[index] = bit
             }
@@ -17,11 +24,9 @@ macro_rules! impl_cartesian {
 }
 
 #[macro_export]
-macro_rules! impl_genotype {
+macro_rules! impl_genotype_static_size_with_len {
     (for $($t:ty;$g:ty),+) => {
         $(impl<const N: usize> Genotype<$g> for $t {
-            const LEN: usize = N;
-
             fn len(&self) -> usize {
                 <$t>::len(&self)
             }
@@ -29,16 +34,22 @@ macro_rules! impl_genotype {
             fn get(&self, index: usize) -> $g {
                 self[index]
             }
+
+            fn set(&mut self, index: usize, bit: $g) {
+                self[index] = bit
+            }
+        })*
+
+        $(impl<const N: usize> FixedSizeGenotype<$g> for $t {
+            const LEN: usize = N;
         })*
     }
 }
 
 #[macro_export]
-macro_rules! impl_genotype2 {
+macro_rules! impl_genotype_static_size {
     (for $($t:ty;$g:ty),+) => {
         $(impl<const N: usize> Genotype<$g> for $t {
-            const LEN: usize = N;
-
             fn len(&self) -> usize {
                 N
             }
@@ -46,6 +57,14 @@ macro_rules! impl_genotype2 {
             fn get(&self, index: usize) -> $g {
                 self[index]
             }
+
+            fn set(&mut self, index: usize, bit: $g) {
+                self[index] = bit
+            }
+        })*
+
+        $(impl<const N: usize> FixedSizeGenotype<$g> for $t {
+            const LEN: usize = N;
         })*
     }
 }
@@ -62,13 +81,13 @@ macro_rules! impl_genotype2 {
 //     }
 // }
 
-pub trait Genotype<A>: Sized + Send + Sync + Clone + Debug + FromIteratorUnsafe<A>
+pub trait Genotype<A>: Sized + Send + Sync + Clone + Debug
 where
     A: Allele,
 {
-    const LEN: usize;
-
     fn get(&self, index: usize) -> A;
+
+    fn set(&mut self, index: usize, gene: A);
 
     fn len(&self) -> usize;
 
@@ -82,6 +101,13 @@ where
             _allele: PhantomData,
         }
     }
+}
+
+pub trait FixedSizeGenotype<A>: Genotype<A> + FromIteratorUnsafe<A>
+where
+    A: Allele,
+{
+    const LEN: usize;
 }
 
 pub struct GenotypeIter<'a, G, A>
@@ -146,8 +172,6 @@ impl<T, const N: usize> Genotype<T> for SizedVec<T, N>
 where
     T: Allele,
 {
-    const LEN: usize = N;
-
     fn len(&self) -> usize {
         self.vec.len()
     }
@@ -155,40 +179,40 @@ where
     fn get(&self, index: usize) -> T {
         self.vec[index]
     }
-}
 
-impl<T, const N: usize> Cartesian<T> for SizedVec<T, N>
-where
-    T: Allele,
-{
     fn set(&mut self, index: usize, gene: T) {
         self.vec[index] = gene;
     }
 }
 
 #[macro_export]
-macro_rules! impl_cartesian_genotype_for_array {
+macro_rules! impl_genotype_for_vec {
     (for $($g:ty),+) => {
         $(
-            impl_genotype2!(for [$g; N]; $g);
-            impl_cartesian!(for [$g; N]; $g);
-
+            impl_genotype_with_len!(for Vec<$g>; $g);
         )*
     };
 }
 
 #[macro_export]
-macro_rules! impl_cartesian_genotype_for_arrayvec {
+macro_rules! impl_genotype_for_array {
     (for $($g:ty),+) => {
         $(
-            impl_genotype!(for ArrayVec<$g, N>; $g);
-            impl_cartesian!(for ArrayVec<$g, N>; $g);
-
+            impl_genotype_static_size!(for [$g; N]; $g);
         )*
     };
 }
 
-impl_cartesian_genotype_for_arrayvec!(for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
-impl_cartesian_genotype_for_array!(for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
+#[macro_export]
+macro_rules! impl_genotype_for_arrayvec {
+    (for $($g:ty),+) => {
+        $(
+            impl_genotype_static_size_with_len!(for ArrayVec<$g, N>; $g);
+        )*
+    };
+}
 
+impl_genotype_for_arrayvec!(for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
+impl_genotype_for_array!(for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
+impl_genotype_for_vec!(for bool, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128, usize, isize, f32, f64);
 // pub(crate) use impl_cartesian_genotype_for_vec_types;

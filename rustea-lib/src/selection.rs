@@ -127,7 +127,7 @@ impl SelectionOperator for TournamentSelection {
 
         population.clear();
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..num_iterations {
             pool.shuffle(&mut rng);

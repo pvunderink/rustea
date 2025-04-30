@@ -1,6 +1,6 @@
 use crate::{
     gene::{Allele, BoolDomain, Discrete, DiscreteDomain, DiscreteGene, Gene},
-    genotype::Genotype,
+    genotype::{FixedSizeGenotype, Genotype},
     types::CollectUnsafe,
 };
 
@@ -9,9 +9,6 @@ use std::{fmt::Debug, marker::PhantomData, slice::Iter};
 use rand::Rng;
 
 pub trait Permutation: Send + Sync {}
-pub trait Cartesian<Gene>: Send + Sync {
-    fn set(&mut self, index: usize, gene: Gene);
-}
 
 // A genome represents the domain of all possible genotypes
 // Each gene in the genome has a range with possible values the genes could take
@@ -31,7 +28,7 @@ impl<Gnt, A, G> Genome<Gnt, A, G>
 where
     A: Allele,
     G: Gene<A>,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     pub fn sample_uniform<R>(&self, rng: &mut R) -> Gnt
     where
@@ -60,7 +57,7 @@ impl<Gnt, A, D> Genome<Gnt, A, DiscreteGene<A, D>>
 where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     pub fn with_discrete_domain(domain: &D) -> Self {
         Self {
@@ -75,7 +72,7 @@ where
 
 impl<Gnt> Genome<Gnt, bool, DiscreteGene<bool, BoolDomain>>
 where
-    Gnt: Genotype<bool>,
+    Gnt: FixedSizeGenotype<bool>,
 {
     pub fn with_bool_domain() -> Self {
         Self {

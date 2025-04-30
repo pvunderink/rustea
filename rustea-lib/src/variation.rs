@@ -1,14 +1,13 @@
 use crate::{
     fitness::{Fitness, FitnessFunc},
     gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
-    genome::{Cartesian, Genome},
-    genotype::Genotype,
+    genome::Genome,
+    genotype::{FixedSizeGenotype, Genotype},
     individual::Individual,
     model::UnivariateModel,
 };
 
-use derivative::Derivative;
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng, seq::SliceRandom};
 use rayon::prelude::*;
 use std::marker::PhantomData;
 
@@ -61,15 +60,13 @@ where
     }
 }
 
-#[derive(Derivative, Clone)]
-#[derivative(Default)]
+#[derive(Default, Clone)]
 pub struct UniformCrossover<Gnt, A>
 where
     A: Allele + Discrete,
-    Gnt: Genotype<A> + Cartesian<A>,
+    Gnt: Genotype<A>,
 {
-    #[derivative(Default(value = "0.5"))]
-    probability: f64,
+    probability: f64, // TODO: set default to 0.5
     _allele: PhantomData<A>,
     _genotype: PhantomData<Gnt>,
 }
@@ -77,7 +74,7 @@ where
 impl<Gnt, A> UniformCrossover<Gnt, A>
 where
     A: Allele + Discrete,
-    Gnt: Genotype<A> + Cartesian<A>,
+    Gnt: Genotype<A>,
 {
     pub fn with_probability(probability: f64) -> Self {
         Self {
@@ -101,12 +98,12 @@ where
             "length of genotypes must be equal"
         );
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Generate an array of booleans
         // true indicates that the gene should be crossed over
         let choices: Vec<_> = (0..parent_a.genotype().len())
-            .map(|_| rng.gen_bool(self.probability))
+            .map(|_| rng.random_bool(self.probability))
             .collect();
 
         // Create copies of parent a and b
@@ -114,7 +111,7 @@ where
         let mut offspring_b = parent_b.genotype().clone();
 
         for (idx, b) in choices.iter().enumerate() {
-            if *b {
+            if b {
                 offspring_b.set(idx, parent_a.genotype().get(idx));
                 offspring_a.set(idx, parent_b.genotype().get(idx));
             }
@@ -140,7 +137,7 @@ where
 impl<Gnt, A> OnePointCrossover<Gnt, A>
 where
     A: Allele + Discrete,
-    Gnt: Genotype<A> + Cartesian<A>,
+    Gnt: Genotype<A>,
 {
     fn crossover<F>(
         &self,
@@ -156,10 +153,10 @@ where
             "length of genotypes must be equal"
         );
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Pick a crossover point (both endpoints are included)
-        let crossover_point: usize = rng.gen_range(0..parent_a.genotype().len() + 1);
+        let crossover_point: usize = rng.random_range(0..parent_a.genotype().len() + 1);
 
         // Create copies of parent a and b
         let mut offspring_a = parent_a.genotype().clone();
@@ -192,7 +189,7 @@ where
 impl<Gnt, A> TwoPointCrossover<Gnt, A>
 where
     A: Allele + Discrete,
-    Gnt: Genotype<A> + Cartesian<A>,
+    Gnt: Genotype<A>,
 {
     pub fn new() -> Self {
         Self {
@@ -214,11 +211,11 @@ where
             "length of genotypes must be equal"
         );
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // Pick a crossover point (both endpoints are included)
-        let crossover_point_1: usize = rng.gen_range(0..parent_a.genotype().len() + 1);
-        let crossover_point_2: usize = rng.gen_range(0..parent_a.genotype().len() + 1);
+        let crossover_point_1: usize = rng.random_range(0..parent_a.genotype().len() + 1);
+        let crossover_point_2: usize = rng.random_range(0..parent_a.genotype().len() + 1);
 
         // Create copies of parent a and b
         let mut offspring_a = parent_a.genotype().clone();
@@ -248,7 +245,7 @@ macro_rules! impl_two_parent_crossover {
             where
                 A: Allele + Discrete,
                 F: Fitness,
-                Gnt: Genotype<A> + Cartesian<A>,
+                Gnt: Genotype<A>,
             {
                 fn create_offspring(
                     &self,
@@ -259,7 +256,7 @@ macro_rules! impl_two_parent_crossover {
                     Self: Sized,
                     F: Fitness,
                 {
-                    let mut rng = rand::thread_rng();
+                    let mut rng = rand::rng();
                     // Shuffle the population
                     let mut population: Vec<_> = population.iter().collect();
                     population.shuffle(&mut rng);
@@ -327,7 +324,7 @@ where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     fn create_offspring(
         &self,
@@ -342,7 +339,7 @@ where
         (0..population.len())
             .into_par_iter()
             .map_init(
-                || rand::thread_rng(), // each thread has its own rng
+                || rand::rng(), // each thread has its own rng
                 |rng, _| {
                     let mut child = model.sample(rng);
 

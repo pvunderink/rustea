@@ -6,7 +6,7 @@ use crate::{
     fitness::{Fitness, FitnessFunc},
     gene::{Allele, Discrete, DiscreteDomain, DiscreteGene},
     genome::Genome,
-    genotype::Genotype,
+    genotype::FixedSizeGenotype,
     individual::Individual,
     model::{Factorization, MultivariateModel},
     variation::VariationOperator,
@@ -18,7 +18,7 @@ where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>,
     p_best: f64,
@@ -31,7 +31,7 @@ where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     pub fn with_genome(genome: &'a Genome<Gnt, A, DiscreteGene<A, D>>, p_best: f64) -> Self {
         Self {
@@ -101,7 +101,7 @@ where
     A: Allele + Discrete,
     D: DiscreteDomain<A>,
     F: Fitness,
-    Gnt: Genotype<A>,
+    Gnt: FixedSizeGenotype<A>,
 {
     fn create_offspring(
         &self,
@@ -119,7 +119,7 @@ where
         (0..population.len())
             .into_par_iter()
             .map_init(
-                || rand::thread_rng(), // each thread has its own rng
+                || rand::rng(), // each thread has its own rng
                 |rng, _| {
                     let mut child = model.sample(rng);
 
