@@ -1,8 +1,12 @@
-use arrayvec::ArrayVec;
-
 pub trait FromIteratorUnsafe<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self;
 }
+
+// impl<T, U: FromIterator<T>> FromIteratorUnsafe<T> for U {
+//     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+//         FromIterator::from_iter(iter)
+//     }
+// }
 
 impl<T, const N: usize> FromIteratorUnsafe<T> for [T; N]
 where
@@ -18,12 +22,16 @@ where
     }
 }
 
-impl<T, const N: usize> FromIteratorUnsafe<T> for ArrayVec<T, N>
-where
-    T: Default + Copy,
-{
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        <ArrayVec<T, N> as FromIterator<T>>::from_iter(iter)
+#[cfg(feature = "arrayvec")]
+mod arrayvec {
+    use arrayvec::ArrayVec;
+    impl<T, const N: usize> FromIteratorUnsafe<T> for ArrayVec<T, N>
+    where
+        T: Default + Copy,
+    {
+        fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+            <ArrayVec<T, N> as FromIterator<T>>::from_iter(iter)
+        }
     }
 }
 

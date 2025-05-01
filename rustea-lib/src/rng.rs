@@ -47,13 +47,20 @@ impl RngGenerator<Xoshiro256StarStar> for XoshiroRngGenerator<Xoshiro256StarStar
     }
 }
 
-// impl RngGenerator<Pcg64> for XoshiroRngGenerator<Xoshiro256StarStar> {
+// pub struct PcgRngGenerator<R>
+// where
+//     R: Rng + ?Sized,
+// {
+//     rng: R,
+// }
+
+// impl<R: Rng + SeedableRng + Sized + Clone> RngGenerator<R> for PcgRngGenerator<R> {
 //     fn from_seed(seed: u64) -> Self {
 //         Self {
-//             rng: Xoshiro256StarStar::seed_from_u64(seed),
+//             rng: R::seed_from_u64(seed),
 //         }
 //     }
-//     fn next(&self) -> Xoshiro256StarStar {
+//     fn next(&mut self) -> R {
 //         let mut rng = self.rng.clone();
 //         rng.jump();
 //         rng

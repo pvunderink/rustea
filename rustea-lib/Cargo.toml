@@ -7,19 +7,26 @@ edition = "2024"
 
 [dependencies]
 ndarray = { version = "0.16.1", features = ["rayon"] }
-ndarray-linalg = { version = "0.17.0", features = ["openblas-static"] }
+ndarray-linalg = { version = "0.17.0", features = [
+    "openblas-static",
+], optional = true }
 rand = "0.9.1"
 rand_distr = "0.5.1"
 num-traits = "0.2.19"
 # partial_application = "0.2.1"
 rayon = "1.10.0"
 approx = "0.5.1"
-rand_pcg = "0.9.0"
-rand_xoshiro = "0.7.0"
-arrayvec = "0.7.6"
+rand_pcg = { version = "0.9.0", optional = true }
+rand_xoshiro = { version = "0.7.0", optional = true }
+arrayvec = { version = "0.7.6", optional = true }
 
 [profile.release]
 debug = 1
 
+[features]
+default = ["rngs"]
+arrayvec = ["dep:arrayvec"]
+statistics = ["dep:ndarray-linalg"]
+rngs = ["dep:rand_pcg", "dep:rand_xoshiro"]
 # [rust]
 # debuginfo-level = 1
