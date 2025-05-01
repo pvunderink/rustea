@@ -24,7 +24,6 @@ arrayvec = { version = "0.7.6", optional = true }
 debug = 1
 
 [features]
-default = ["rngs"]
 arrayvec = ["dep:arrayvec"]
 statistics = ["dep:ndarray-linalg"]
 rngs = ["dep:rand_pcg", "dep:rand_xoshiro"]
